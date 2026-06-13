@@ -73,6 +73,8 @@ The source of truth is a platform YAML file describing services, routes, and exp
 ```yaml
 version: 1
 
+# port_range: 18000-18999        # optional; default range for allocated (listen-less) ports
+
 services:
   web:                              # declared (operator-pinned) port
     source:
@@ -88,6 +90,7 @@ services:
     env_file: ./secrets/web.env
     health:
       http: { path: /healthz }
+      timeout: 30                 # seconds the startup check may take (default 30)
 
   api:                              # allocated port; binds $PORT
     source:
@@ -135,7 +138,7 @@ exposure:
 Operational artifacts (systemd unit files, NGINX config, cloudflared config) are real files. In addition the controller keeps a tiny JSON state sidecar in the runtime directory (`~/.local/share/outpost/state.json`) holding exactly three things: the digest of the last successfully applied spec, the allocated port assignments for services that omit `listen`, and timestamps of recent successful applies. **Nothing else** — no apply history, no per-service status, no operational metadata, no event log. Per-service status is computed live from `systemctl --user` / journald at query time, never persisted. If a question cannot be answered by the files plus those three values, it is out of scope for v1. The **current deployed SHA lives in the config** (`source.sha`), which is the source of truth for what is deployed.
 
 - **Idempotent apply**: `outpost apply` compares the spec's digest to the stored applied digest. If they match and services are up, the apply is a no-op. `apply` and `update` both update the stored digest, so an `apply` after an `update` stays a no-op.
-- **Atomicity**: applies are staged, validated, the current set backed up as last-known-good, then swapped. If the generated config is invalid or the startup health check fails, the apply reverts to the backup so the running system is left unchanged. v1 applies are all-or-nothing: an apply either fully succeeds or leaves the previous working state in place.
+- **Atomicity**: applies are staged, validated, the current set backed up as last-known-good, then swapped. If the generated config is invalid or the startup health check fails, the apply reverts to the backup so the running system is left unchanged. v1 applies are all-or-nothing: a single service failing its startup gate reverts the entire apply (including services that passed), and only **one** last-known-good set is retained — there is no history to roll back *through* (see Non-goals). Because the atomic swap stops and restarts the changed services while NGINX still holds the old routing, there is a brief window where those upstreams return 502s until the health check passes and NGINX reloads; v1 accepts this short blip as the price of guaranteeing that live traffic never reaches a service that failed its gate.
 - **No SQLite in v1**: a query engine is unnecessary for digest/status. SQLite is deferred to v2 if needs grow. The JSON sidecar is portable, readable, git-ignoreable, and written atomically via temp-file rename.
 
 ## Functional requirements
@@ -203,7 +206,7 @@ With no policy engine in v1, security comes from the architecture: services bind
 
 Health in v1 is a **simple startup check only**, used to gate an apply — not ongoing traffic shaping.
 
-- If a service defines `health` (`http: { path }` or a TCP check), `apply` probes it on the service's **local listener** and waits for it to pass within a configured timeout before reloading NGINX — so the route only goes active once the check passes.
+- If a service defines `health` (`http: { path }` or a TCP check), `apply` probes it on the service's **local listener** and waits for it to pass within a timeout (`health.timeout`, default 30 seconds) before reloading NGINX — so the route only goes active once the check passes.
 - If no `health` is defined, `apply` succeeds once systemd reports the unit active.
 - If the check never passes, the apply **fails** and the previous working state is restored (see "Atomicity").
 
@@ -211,7 +214,7 @@ There are no passive/active health probes, no pulling of unhealthy services out 
 
 ### 6. Logging and status
 
-Outpost provides a unified status view: which services are running (and their systemd unit state), which routes are configured, and which hosts are exposed. "Route state" means only whether a route is configured, not a hidden routing state machine. It surfaces per-service logs from journald (`journalctl --user -u <service>`), so operators and agents can inspect problems without understanding low-level file layout.
+Outpost provides a unified status view: which services are running (and their systemd unit state), which routes are configured, and which hosts are exposed. "Route state" means only whether a route is configured, not a hidden routing state machine. It surfaces per-service logs from journald (`journalctl --user -u <service>`), so operators and agents can inspect problems without understanding low-level file layout. Log output is **bounded**: `logs <service>` (and the MCP `tail_logs` tool) emit a tail, default the last 200 lines, adjustable with `--lines N`, so an agent's context window is never flooded by raw journald output.
 
 Required commands: `status`, `logs <service>`, `routes`, `exposure`, `ps`.
 
@@ -244,7 +247,7 @@ The managed clone lives under `~/.local/share/outpost/repos/<service>`; clones a
 - **`outpost apply`** reconciles to whatever `source.sha` says: clone if missing, check out the sha, build if the clone changed, then render and activate configs. The only time `apply` writes `source.sha` is the one-time seed of an empty field (resolving `ref`→sha on first deploy); it never advances an already-set sha and never pulls within a ref.
 - **`outpost update <service> [--ref <ref>]`** is the **only** command that advances an existing `source.sha`: it fetches, resolves the current `ref` (or `--ref`, which also writes `ref`) to a new sha, writes that sha into `source.sha`, then runs `apply` (which now just reconciles to the value `update` just wrote). On fetch/build/health failure the running service is left untouched and the update is reported failed.
 
-Because the config is also written by `update`, the operator interacts primarily through the CLI/MCP rather than hand-editing YAML; if the config is version-controlled, each update appears as a commit (a free audit log — commit afterward). Private repositories use the operator's existing git/SSH credentials — Outpost runs `git` as the operator user; there is no credential manager in v1. Auto-update (polling or webhooks) is deferred to v2.
+Because the config is also written by `update`, the operator interacts primarily through the CLI/MCP rather than hand-editing YAML; if the config is version-controlled, each update appears as a commit (a free audit log — commit afterward). Private repositories use the operator's existing git/SSH credentials — Outpost runs `git` as the operator user; there is no credential manager in v1. Git runs non-interactively, so the credentials (SSH keys, an HTTPS credential helper, or a cached token) must already be resolvable for the operator account, or clone/fetch fails fast rather than blocking on a prompt. Auto-update (polling or webhooks) is deferred to v2.
 
 ## CLI requirements
 
@@ -256,7 +259,7 @@ The CLI is the primary operator interface and the canonical engine used by highe
 - `outpost validate`
 - `outpost apply`
 - `outpost status`
-- `outpost logs <service>`
+- `outpost logs <service> [--lines N]`
 - `outpost ps`
 - `outpost routes`
 - `outpost exposure`

@@ -55,7 +55,7 @@ tests/
 
 ### File Operations & Atomicity
 
-* **Temporary Staging:** Never template directly into `~/.local/share/outpost/generated/`. Render configs to a secure temporary directory, run validation (`nginx -t -c <temp-dir>`), and only use `os.replace()` for atomic swaps once validated.
+* **Temporary Staging:** Never template directly into `~/.local/share/outpost/generated/`. Render configs to a secure temporary directory, then validate. Because `nginx -t` needs a complete `nginx.conf` (it cannot test bare server blocks), construct a throwaway `nginx.conf` in the temp dir that `include`s the staged server blocks — mirroring the live user-unit's include line — and run `nginx -t -c` against that. Only `os.replace()` the validated files into place.
 * **Atomic State Updates:** When modifying `state.json` or rewriting `outpost.yaml` (e.g., during `update`), write to `file.tmp` and atomic-rename to `file.ext` to prevent corruption if the machine loses power mid-write.
 
 ### Idempotency & Purity

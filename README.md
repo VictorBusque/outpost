@@ -110,7 +110,7 @@ Outpost's CLI is the authoritative interface for your infrastructure.
 | `outpost stop <svc>` | Stops one systemd user service. |
 | `outpost restart <svc>` | Restarts one systemd user service. |
 | `outpost status` | Displays unified service health, route, and exposure status. |
-| `outpost logs <svc>` | Tails journald logs for a service. |
+| `outpost logs <svc> [--lines N]` | Tails journald logs for a service (bounded tail; default 200). |
 | `outpost ps` | Lists running services and their systemd unit states. |
 | `outpost routes` | Lists configured host/path routes. |
 | `outpost exposure` | Lists hosts exposed through Cloudflare Tunnel. |

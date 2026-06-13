@@ -131,14 +131,12 @@ This file is the editable configuration source of truth. The user owns it and ma
     nginx/
     cloudflared/
     systemd/
-  docs/
-    *.md
   state.json
 ```
 
 Rules:
 
-- `repos/`, `data/`, `generated/`, `docs/`, and `state.json` are managed by Outpost
+- `repos/`, `data/`, `generated/`, and `state.json` are managed by Outpost
 - the user should not edit runtime files directly
 - the CLI and MCP are the supported mutation interfaces for Outpost-managed state
 
@@ -186,7 +184,7 @@ This file is:
 - optionally version-controlled by the user
 - mutated by Outpost commands when needed
 
-Outpost CLI is the authoritative writer for deployment-related fields such as `source.sha`. All writes go through temp-file + atomic rename to prevent torn files. v1 assumes a single operator issuing serialized commands; an `fcntl` advisory lock against concurrent CLI invocations is a candidate hardening but is deferred — concurrent edits to `outpost.yaml` may lose updates.
+Outpost CLI is the authoritative writer for deployment-related fields such as `source.sha`. All writes go through temp-file + atomic rename to prevent torn files. v1 assumes a single operator issuing serialized commands. The MCP server serializes tool calls within one stdio connection, but there is no cross-process lock, so concurrent CLI + MCP sessions (or multiple MCP clients) can still race on `outpost.yaml`/`state.json`. An `fcntl` advisory lock is a candidate hardening but is deferred — concurrent edits may lose updates.
 
 ---
 
@@ -203,7 +201,7 @@ Outpost CLI is the authoritative writer for deployment-related fields such as `s
    - clone repo if missing
    - if `sha` is empty, resolve `ref`→sha once and write it back (seed)
    - checkout pinned `sha`
-   - run build step, if defined
+   - run the build step, if defined, only when the clone is freshly made or `sha` changed since the last apply (idempotent; unchanged pinned commits are not rebuilt)
 4. generate systemd user units
 5. generate NGINX config
 6. validate NGINX config (`nginx -t`)
@@ -211,7 +209,7 @@ Outpost CLI is the authoritative writer for deployment-related fields such as `s
 8. reload systemd user daemon
 9. start/restart affected services
 10. run startup health check against each service's local listener, if defined
-11. on success: reload NGINX (activating new routing) and ensure cloudflared is running; on failure: restore last-known-good config and reload NGINX back to it
+11. on success: reload NGINX (activating new routing) and ensure cloudflared is running; on failure: restore last-known-good config and reload NGINX back to it. cloudflared is a `systemd --user` unit, so a start failure surfaces as a `subprocess` error and fails the apply (rollback) just like any other command
 12. commit apply (update spec digest + timestamps in `state.json`)
 
 ### Failure model
@@ -287,6 +285,7 @@ Outpost does not implement its own process supervisor.
 Health in v1 is a **startup check only**.
 
 - if a service defines `health`, `apply` waits for the check to pass before considering the deploy successful
+- `apply` polls until the check passes or `health.timeout` (default 30 seconds) elapses; timing out counts as a failure
 - if no `health` is defined, `apply` succeeds once systemd reports the unit active
 - if the check never passes, `apply` fails and the previous working state is restored
 
@@ -439,7 +438,7 @@ The CLI is the primary operator interface and the canonical engine used by highe
 - `outpost update <service> [--ref <ref>]`
 - `outpost validate`
 - `outpost status`
-- `outpost logs <service>`
+- `outpost logs <service> [--lines N]`
 - `outpost ps`
 - `outpost routes`
 - `outpost exposure`
@@ -482,6 +481,8 @@ Outpost exposes a stdio MCP server.
 - `show_routes`
 - `show_exposure`
 - `tail_logs`
+
+`tail_logs` returns a bounded tail (default 200 lines) to keep an agent's context window manageable; the bound is adjustable via a count argument.
 
 The MCP server is a thin adapter over the same internal library used by the CLI.
 
