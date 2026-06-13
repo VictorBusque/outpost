@@ -31,6 +31,7 @@ Reference docs (derived from the three above; they elaborate, not override):
 - `docs/v1/config-schema.md` — the canonical `outpost.yaml` field schema: every key, type, default, and validation rule. This is the contract the Pydantic models implement.
 - `docs/v1/cli-reference.md` — full CLI command + MCP tool contracts (flags, args, exit codes, input/output schemas).
 - `docs/v1/examples/full-stack.yaml` — an exhaustive, realistic example config exercising every field.
+- `docs/v1/implementation-plan.md` — the v1 build roadmap: phased task decomposition, cross-cutting technical decisions, testing strategy, risks. A living plan, not a normative spec.
 
 When the docs disagree, `rfc.md` is the authoritative reference for the exact command surface and file layout, and `prd.md`/`rfc.md` govern the schema; the reference docs are derived, so raise any discrepancy rather than silently picking one.
 

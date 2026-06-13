@@ -129,6 +129,7 @@ Outpost's CLI is the authoritative interface for your infrastructure.
 | [docs/v1/config-schema.md](docs/v1/config-schema.md) | Canonical `outpost.yaml` field schema (types, defaults, validation rules). |
 | [docs/v1/cli-reference.md](docs/v1/cli-reference.md) | Full CLI + MCP tool contracts (flags, exit codes, I/O schemas). |
 | [docs/v1/examples/full-stack.yaml](docs/v1/examples/full-stack.yaml) | Exhaustive, realistic example config. |
+| [docs/v1/implementation-plan.md](docs/v1/implementation-plan.md) | v1 build roadmap: phased tasks, technical decisions, testing, risks. |
 
 ---
 
