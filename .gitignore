@@ -25,5 +25,8 @@ dist/
 # Kimetsu brain sidecar (local tooling state)
 .kimetsu/
 
+# Claude Code local config (Kimetsu hooks etc.) — personal, not shared
+.claude/
+
 # Outpost runtime artifacts (never relevant to the source tree)
 .local/
