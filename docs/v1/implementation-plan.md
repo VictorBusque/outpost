@@ -66,7 +66,7 @@ These are the details the specs left to implementation. Pinning them now prevent
 
 ## Discrepancies to reconcile before/while implementing
 
-- **NGINX config location.** `prd.md` §1 says server blocks go in `~/.config/outpost/nginx/`; `rfc.md` §6 lists `generated/nginx/` under `~/.local/share/outpost/`. Per `AGENTS.md`, **RFC §6 governs file layout.** Reconciled meaning: the user NGINX's main `nginx.conf` (with the `include` line) is created by `init` under `~/.config/outpost/nginx/`; generated server blocks are runtime under `~/.local/share/outpost/generated/nginx/`. Recommend aligning `prd.md` §1's example to match — flag, don't silently edit.
+- **NGINX config location (resolved).** `prd.md` §1 now matches `rfc.md` §6: the user NGINX's main `nginx.conf` (with the `include` line) is created by `init` under the user-owned `~/.config/outpost/nginx/`, while **generated server blocks** are runtime under `~/.local/share/outpost/generated/nginx/`. AGENTS.md's rule that RFC §6 governs file layout still holds.
 
 ## Task decomposition
 
@@ -157,6 +157,7 @@ Snapshot tests for rendered units/configs catch template regressions. Every vali
 - **cloudflared auth** is operator-owned; `init` only verifies presence, not validity.
 - **No concurrent locking** (`fcntl` deferred). Single-operator assumption; MCP serializes within one stdio connection only — concurrent CLI+MCP or multiple MCP clients can race. Documented, not fixed in v1.
 - **Rollback depth = 1.** No history to roll back through (non-goal).
+- **Cloudflared edge registration is out of the gate.** The startup health check covers services; `apply` only verifies the cloudflared unit is *started*, and only a unit **start** failure (subprocess error) is a rollback trigger. Asynchronous edge registration — the tunnel actually serving a host route — is unobservable via `systemctl is-active` and deliberately not a rollback trigger: such failures are typically external (credentials/network/edge state), so reverting to last-known-good wouldn't recover the route and would only tear down a locally-healthy apply. systemd re-registers on its own clock; a dead-route *detection* (not rollback) belongs with the deferred passive/active connectivity checks.
 - **Build toolchains are host-provided.** Build failures surface as subprocess errors; Outpost does not manage runtimes.
 
 ## Milestones

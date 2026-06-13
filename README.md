@@ -154,7 +154,7 @@ uv sync
 Before submitting a Pull Request, please ensure your code adheres to the project's strict quality gates:
 
 * **Formatting & Linting:** Run `uvx ruff check .` and `uvx ruff format .`
-* **Type Checking:** We use Astral's `ty`. Run `uvx ty .` to ensure strict type compliance. No dynamic type drift is permitted in system-mutating logic.
+* **Type Checking:** We use Astral's `ty` (strict). Run `uvx ty .`. `ty` is still in beta, so `mypy --strict` is the documented fallback — run whichever is current. No dynamic type drift is permitted in system-mutating logic.
 * **Testing:** Run the test suite with `uv run pytest`. Because Outpost mutates system state, all unit tests testing the core `engine/` must mock `subprocess.run` (Git, systemctl, NGINX) and file system operations using `unittest.mock` or `pytest` fixtures.
 
 ### Architectural Rules

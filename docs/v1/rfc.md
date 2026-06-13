@@ -291,6 +291,8 @@ Health in v1 is a **startup check only**.
 
 There are no passive or active traffic health checks, no route quarantine state, and no live upstream pruning in v1.
 
+Cloudflared edge registration is **not** part of the health gate. `apply` ensures the cloudflared unit is started; a unit **start** failure is a rollback trigger (subprocess error), but the tunnel's asynchronous registration of a host route with the upstream edge is not observable via `systemctl is-active` and is not a v1 rollback trigger — such failures are typically external (credentials, network, edge state), so rollback cannot remediate them and would only extend the outage. systemd supervises cloudflared; the public route recovers on cloudflared's reconnect timeline. A dead-route *detection* (not rollback) belongs with the deferred passive/active connectivity checks.
+
 ---
 
 ## 14. State Model

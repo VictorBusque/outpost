@@ -79,7 +79,7 @@ All tools accept and return JSON. None ever return environment/secret contents.
     "sha": "b7e0d33", "ref": "main", "health": { "defined": true, "startup": "passed" },
     "since": "2026-06-13T09:12:00Z", "main_pid": 48213 }
   ```
-  `unit` is the systemd state (`active`/`inactive`/`failed`/`activating`). Computed live from `systemctl --user`/journald; never persisted.
+  `unit` is the systemd state (`active`/`inactive`/`failed`/`activating`). Computed live from `systemctl --user`/journald; never persisted. `health`: `defined` is `false` when the service declares no `health` block (then `startup` is omitted), and `true` otherwise; `startup` is `"passed"`/`"failed"`/`"unknown"`, where `"unknown"` covers units that are not `active` (e.g. `inactive`/`activating`) so a health result is not implied.
 
 ### `start_service` / `stop_service` / `restart_service`
 - Input: `{ "service": "<name>" }`

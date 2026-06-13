@@ -164,7 +164,7 @@ The platform targets **systemd user units only** (`systemctl --user`); services 
 
 ##### NGINX privilege bridge
 
-NGINX is managed as a **systemd user unit** too — an instance the operator runs (no root). Because the tunnel terminates TLS, NGINX only needs to listen on a distinctive high local port (default `127.0.0.1:41999`, distinct from any service listener) or a unix socket, so no privileged bind is required. The controller writes all server blocks into a **user-owned directory** (e.g. `~/.config/outpost/nginx/`) and the user NGINX loads them via a single `include` line. Cloudflared's ingress points at this NGINX (`http://127.0.0.1:41999`).
+NGINX is managed as a **systemd user unit** too — an instance the operator runs (no root). Because the tunnel terminates TLS, NGINX only needs to listen on a distinctive high local port (default `127.0.0.1:41999`, distinct from any service listener) or a unix socket, so no privileged bind is required. The controller writes all **generated server blocks** under the Outpost-owned runtime directory (`~/.local/share/outpost/generated/nginx/`), matching the layout in RFC §6. The user NGINX's main `nginx.conf` — which carries a single `include` line pointing at those generated server blocks — is created once by `init` under the user-owned config directory (`~/.config/outpost/nginx/`). Cloudflared's ingress points at this NGINX (`http://127.0.0.1:41999`).
 
 This keeps the no-root model intact: Outpost only ever writes inside its own directory and reloads via `systemctl --user reload`. There is no sudo and no sudoers rule in v1. A documented **one-time setup step** installs the `include` line and starts the user NGINX unit — analogous to `enable-linger`, a host prerequisite, not an ongoing privileged operation.
 
@@ -211,6 +211,8 @@ Health in v1 is a **simple startup check only**, used to gate an apply — not o
 - If the check never passes, the apply **fails** and the previous working state is restored (see "Atomicity").
 
 There are no passive/active health probes, no pulling of unhealthy services out of the live upstream, and no degraded/maintenance states in v1 — systemd handles crash-restart; apply handles the startup gate.
+
+**The gate covers services, not the Cloudflare Tunnel.** `apply` only verifies cloudflared is *started* (its systemd unit active), and that enters the rollback trigger set solely as a **start** failure (a subprocess error). Cloudflared **edge registration** — the tunnel actually accepting and serving a hostname route at the upstream edge — is asynchronous, unobservable via `systemctl is-active`, and deliberately **not** a v1 rollback trigger: a registration failure is typically caused by credentials/network/edge state rather than by the config Outpost just applied, so reverting to the last-known-good set would not recover the route and would only tear down a locally-healthy apply. systemd keeps cloudflared alive and it re-registers on its own reconnect timeline; Outpost surfaces the unit's state at query time via `status`/MCP like any other runtime component. Detecting a dead public route (without rolling back on it) is a candidate for the deferred passive/active connectivity checks, not for v1's startup gate.
 
 ### 6. Logging and status
 
