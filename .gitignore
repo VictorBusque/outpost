@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# uv
+.venv/
+# uv.lock IS tracked — it pins the reproducible environment.
+
+# pytest / typing
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ty_cache/
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Kimetsu brain sidecar (local tooling state)
+.kimetsu/
+
+# Outpost runtime artifacts (never relevant to the source tree)
+.local/
