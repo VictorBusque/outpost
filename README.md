@@ -31,7 +31,7 @@ There is a massive gap between raw self-hosting primitives and heavy orchestrati
 Install the Outpost CLI (requires `uv`):
 
 ```bash
-curl -fsSL [https://raw.githubusercontent.com/outpost-platform/outpost/main/install.sh](https://raw.githubusercontent.com/outpost-platform/outpost/main/install.sh) | sh
+curl -fsSL https://raw.githubusercontent.com/outpost-platform/outpost/main/install.sh | sh
 
 ```
 
@@ -56,7 +56,7 @@ version: 1
 services:
   api:
     source:
-      git: [https://github.com/me/my-fastapi.git](https://github.com/me/my-fastapi.git)
+      git: https://github.com/me/my-fastapi.git
       ref: main
     build: pip install -r requirements.txt
     command: python -m uvicorn main:app --port ${PORT}
@@ -102,13 +102,20 @@ Outpost's CLI is the authoritative interface for your infrastructure.
 
 | Command | Description |
 | --- | --- |
-| `outpost init` | Bootstraps the host dependencies and user-level daemon setup. |
-| `outpost apply` | Reconciles the YAML to system reality (clones, builds, renders, reloads). |
-| `outpost update <svc>` | Fetches the latest commit from `source.ref`, updates the SHA, and applies. |
-| `outpost start/stop <svc>` | Manages the lifecycle of a specific systemd service. |
-| `outpost status` | Displays unified health, route, and exposure status. |
-| `outpost logs <svc>` | Tails the journald logs for a service. |
-| `outpost up / down` | Brings the entire stack online or takes it offline safely. |
+| `outpost init` | Bootstraps host dependencies and the user-level daemon setup. |
+| `outpost validate` | Checks the YAML against the schema without modifying the system. |
+| `outpost apply` | Reconciles the YAML to system reality (clone, build, render, reload, health check). |
+| `outpost update <svc> [--ref <ref>]` | Fetches the latest commit on `source.ref`, writes the SHA, and applies. |
+| `outpost start <svc>` | Starts one systemd user service. |
+| `outpost stop <svc>` | Stops one systemd user service. |
+| `outpost restart <svc>` | Restarts one systemd user service. |
+| `outpost status` | Displays unified service health, route, and exposure status. |
+| `outpost logs <svc>` | Tails journald logs for a service. |
+| `outpost ps` | Lists running services and their systemd unit states. |
+| `outpost routes` | Lists configured host/path routes. |
+| `outpost exposure` | Lists hosts exposed through Cloudflare Tunnel. |
+| `outpost up` | Applies config and starts all services (the one-shot "make everything run"). |
+| `outpost down` | Stops all services; leaves config, generated files, clones, and data in place. |
 
 ---
 
@@ -122,7 +129,7 @@ We welcome contributions! Outpost is built on the [Astral stack](https://astral.
 2. **Clone & Sync:**
 
 ```bash
-git clone [https://github.com/outpost-platform/outpost.git](https://github.com/outpost-platform/outpost.git)
+git clone https://github.com/outpost-platform/outpost.git
 cd outpost
 uv sync
 
@@ -146,4 +153,4 @@ Before submitting a Pull Request, please ensure your code adheres to the project
 
 ## 📄 License
 
-Outpost is released under the [MIT License](https://www.google.com/search?q=LICENSE).
+Outpost is released under the [MIT License](LICENSE).

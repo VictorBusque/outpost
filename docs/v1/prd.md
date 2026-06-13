@@ -223,7 +223,7 @@ Services receive environment variables in Docker Compose style:
 - `services.<name>.env_file`: one or more paths to env files loaded verbatim. Suited to secrets; the operator owns these files (typically gitignored or decrypted out of band via `age`/`sops`).
 - Precedence matches Compose: inline `environment` overrides `env_file`; later `env_file` entries override earlier ones.
 
-v1 ships no built-in secret store. The platform reads env sources and passes them through via the generated unit's `Environment=` / `EnvironmentFile=` without interpreting values. Safety constraints: `status` and `logs` never echo environment contents, and `outpost generate` references the env source (e.g. via `EnvironmentFile=`) rather than copying secret values into broadly-readable generated files where avoidable.
+v1 ships no built-in secret store. The platform reads env sources and passes them through via the generated unit's `Environment=` / `EnvironmentFile=` without interpreting values. Safety constraints: `status` and `logs` never echo environment contents, and generated unit files reference the env source (e.g. via `EnvironmentFile=`) rather than copying secret values into broadly-readable generated files where avoidable.
 
 ### 8. Source and updates
 
@@ -253,10 +253,12 @@ The CLI is the primary operator interface and the canonical engine used by highe
 ### Required v1 command surface
 
 - `outpost validate`
-- `outpost generate`
 - `outpost apply`
 - `outpost status`
 - `outpost logs`
+- `outpost ps`
+- `outpost routes`
+- `outpost exposure`
 - `outpost start <service>`
 - `outpost stop <service>`
 - `outpost restart <service>`
