@@ -26,7 +26,13 @@ Read these before writing or reviewing code:
 - `docs/v1/rfc.md` — technical spec: install/init model, directory layout, execution model, state model, security posture. **The canonical v1 CLI command surface is in `rfc.md` §19.**
 - `docs/v1/stack.md` — language, libraries, codebase layout, and engineering conventions.
 
-When the docs disagree, `rfc.md` is the authoritative reference for the exact command surface and file layout; raise the discrepancy rather than silently picking one.
+Reference docs (derived from the three above; they elaborate, not override):
+
+- `docs/v1/config-schema.md` — the canonical `outpost.yaml` field schema: every key, type, default, and validation rule. This is the contract the Pydantic models implement.
+- `docs/v1/cli-reference.md` — full CLI command + MCP tool contracts (flags, args, exit codes, input/output schemas).
+- `docs/v1/examples/full-stack.yaml` — an exhaustive, realistic example config exercising every field.
+
+When the docs disagree, `rfc.md` is the authoritative reference for the exact command surface and file layout, and `prd.md`/`rfc.md` govern the schema; the reference docs are derived, so raise any discrepancy rather than silently picking one.
 
 ## Target tech stack
 

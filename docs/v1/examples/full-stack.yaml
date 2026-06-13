@@ -1,0 +1,91 @@
+# Example Outpost config — exhaustive and realistic.
+#
+# This is a made-up but plausible stack for a fictional org "acme". It exercises
+# every documented field so it doubles as a schema walkthrough and a test fixture.
+# Not meant to be deployed verbatim (SHAs/credentials are placeholders).
+#
+# Canonical field reference: docs/v1/config-schema.md
+
+version: 1
+
+# Optional. Inclusive range for ports assigned to services that omit `listen`.
+# Default is 18000-18999. The NGINX port 41999 and any declared `listen` ports
+# are excluded; first-fit (lowest free port) is used.
+port_range: 18000-18999
+
+services:
+
+  # --- A declared-port web frontend -------------------------------------
+  web:
+    source:
+      git: https://github.com/acme/web.git
+      ref: main
+      sha: 9f2c1a4e7b3d1c8a0f5e6d7c8b9a0f1e2d3c4b5a   # deployed commit; written by outpost
+    # command may include inline args; `args` below are appended to it.
+    command: ./bin/web serve
+    args: ["--addr", "${ADDRESS}"]                    # platform injects ADDRESS=127.0.0.1:8080
+    build: make build                                 # runs in WorkingDirectory; only on clone/sha change
+    listen: 127.0.0.1:8080                            # declared port (operator-pinned)
+    restart: always                                   # maps to systemd Restart=
+    environment:                                      # inline map; ${VAR} interpolated at generate time
+      LOG_LEVEL: info
+      PUBLIC_BASE_URL: https://app.example.com
+    env_file:                                         # one or more env files, loaded verbatim (secrets)
+      - ./secrets/web.env
+      - ./secrets/shared.env
+    health:
+      http: { path: /healthz }                        # GET against the local listener; 2xx/3xx passes
+      timeout: 30                                     # seconds apply waits before treating as failure (default 30)
+
+  # --- An allocated-port API service ------------------------------------
+  api:
+    source:
+      git: git@github.com:acme/api.git                # SSH also supported
+      ref: main
+      sha: b7e0d33                                    # empty before first deploy -> seeded once by apply
+    build: pip install -r requirements.txt
+    command: python -m api
+    # no `listen` -> port allocated from port_range; binds $PORT / $ADDRESS
+    restart: on-failure                               # the platform default
+    environment:
+      DATABASE_URL: postgres://api@127.0.0.1:5432/api
+      DATABASE_FILE: ${DATA_DIR}/app.db               # DATA_DIR is persistent, never touched by updates
+    health:
+      tcp: true                                       # TCP connect check against the local listener
+      timeout: 45
+
+  # --- A background worker in a monorepo subdir -------------------------
+  worker:
+    source:
+      git: https://github.com/acme/platform.git
+      ref: releases
+      sha: c1a2b3c
+      path: services/worker                           # monorepo subdir; WorkingDirectory = <clone>/services/worker
+    build: go build -o bin/worker ./cmd/worker
+    command: ./bin/worker
+    # no `listen`, no `health`, no route: supervised + reachable on localhost only
+    restart: on-failure
+    environment:
+      QUEUE: ${DATA_DIR}/jobs.db
+
+# --- Routing ------------------------------------------------------------
+routes:
+  - host: app.example.com                             # public vhost (also listed in exposure.hosts)
+    paths:
+      /api: { to: api }                               # longest-prefix wins: /api beats /
+      /:    { to: web }
+  - host: "*.example.com"                             # wildcard
+    paths:
+      /: { to: web }
+  -                                                   # default/catch-all vhost (host omitted)
+    paths:
+      /: { to: web }
+  - host: admin.local                                 # LAN-only: in routes, absent from exposure.hosts
+    paths:
+      /: { to: web }
+
+# --- Public exposure (Cloudflare Tunnel only) ---------------------------
+exposure:
+  cloudflare:
+    credentials_file: ~/.cloudflared/app.json         # operator-owned cloudflared credentials
+    hosts: [app.example.com]                          # only this vhost is public via the tunnel

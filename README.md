@@ -119,6 +119,19 @@ Outpost's CLI is the authoritative interface for your infrastructure.
 
 ---
 
+## 📚 Documentation
+
+| Doc | What it covers |
+| --- | --- |
+| [docs/v1/prd.md](docs/v1/prd.md) | Product requirements: the four primitives, apply pipeline, ports, health, source/update semantics. |
+| [docs/v1/rfc.md](docs/v1/rfc.md) | Technical spec: install/init, directory layout, execution & state model, security. |
+| [docs/v1/stack.md](docs/v1/stack.md) | Language, libraries, codebase layout, engineering conventions. |
+| [docs/v1/config-schema.md](docs/v1/config-schema.md) | Canonical `outpost.yaml` field schema (types, defaults, validation rules). |
+| [docs/v1/cli-reference.md](docs/v1/cli-reference.md) | Full CLI + MCP tool contracts (flags, exit codes, I/O schemas). |
+| [docs/v1/examples/full-stack.yaml](docs/v1/examples/full-stack.yaml) | Exhaustive, realistic example config. |
+
+---
+
 ## 🤝 Contributing
 
 We welcome contributions! Outpost is built on the [Astral stack](https://astral.sh/) to guarantee high performance, rigorous type safety, and an excellent developer experience.
