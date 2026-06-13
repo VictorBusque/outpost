@@ -22,8 +22,8 @@
 
 ## 3. Code Quality & Testing (The Astral Stack)
 
-* **Type Checker:** **`ty`**
-  * *Rationale:* Astral's Rust-based type checker is 10-100x faster than traditional tools. It provides the instant LSP feedback required when heavily mutating system states and ensures strict typing across the CLI and MCP schemas.
+* **Type Checker:** **`ty`** (Astral; currently in beta)
+  * *Rationale:* Astral's Rust-based type checker is 10-100x faster than traditional tools. It provides the instant LSP feedback required when heavily mutating system states and ensures strict typing across the CLI and MCP schemas. (`ty` is in beta; `mypy --strict` is the fallback if it regresses.)
 * **Formatter & Linter:** **`ruff`**
   * *Rationale:* Replaces Black, isort, and Flake8 with a single blazing-fast binary. Ensures absolute consistency in code style and catches common execution bugs prior to testing.
 * **Testing Framework:** **`pytest`**

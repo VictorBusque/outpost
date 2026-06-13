@@ -186,7 +186,7 @@ This file is:
 - optionally version-controlled by the user
 - mutated by Outpost commands when needed
 
-Outpost CLI is the authoritative writer for deployment-related fields such as `source.sha`.
+Outpost CLI is the authoritative writer for deployment-related fields such as `source.sha`. All writes go through temp-file + atomic rename to prevent torn files. v1 assumes a single operator issuing serialized commands; an `fcntl` advisory lock against concurrent CLI invocations is a candidate hardening but is deferred — concurrent edits to `outpost.yaml` may lose updates.
 
 ---
 
@@ -201,22 +201,24 @@ Outpost CLI is the authoritative writer for deployment-related fields such as `s
 3. for each service:
 
    - clone repo if missing
+   - if `sha` is empty, resolve `ref`→sha once and write it back (seed)
    - checkout pinned `sha`
    - run build step, if defined
 4. generate systemd user units
 5. generate NGINX config
-6. validate NGINX config
-7. atomically replace runtime config
+6. validate NGINX config (`nginx -t`)
+7. atomically swap in the new runtime config (keeping last-known-good)
 8. reload systemd user daemon
-9. restart affected services
-10. reload NGINX
-11. start cloudflared if needed
-12. run startup health check, if defined
+9. start/restart affected services
+10. run startup health check against each service's local listener, if defined
+11. on success: reload NGINX (activating new routing) and ensure cloudflared is running; on failure: restore last-known-good config and reload NGINX back to it
+12. commit apply (update spec digest + timestamps in `state.json`)
 
 ### Failure model
 
 - if config validation fails, rollback to the last known good runtime set
 - if startup health fails, rollback to the last known good runtime set
+- NGINX is reloaded only after the health check passes, so live traffic never reaches a service that failed its gate
 - otherwise the apply is committed
 
 The result is all-or-nothing for v1.
@@ -248,7 +250,7 @@ Flow:
 Internet → Cloudflare Tunnel → NGINX (localhost) → Service
 ```
 
-Outpost renders the cloudflared config from the exposure section of the YAML. It does not manage public TLS certificates or expose multiple tunnel providers in v1.
+Outpost renders the cloudflared config from the exposure section of the YAML. It does not manage public TLS certificates or expose multiple tunnel providers in v1. cloudflared runs as a platform-managed `systemd --user` unit: `init` enables it and `apply` ensures it is started; supervision is delegated to systemd.
 
 ---
 
@@ -319,7 +321,7 @@ Each service has exactly one bind address.
 The address is resolved in one of two ways:
 
 - **Declared**: set `listen:` to `host:port` or a unix socket path
-- **Allocated**: omit `listen:` and Outpost assigns a stable loopback port from a configured range
+- **Allocated**: omit `listen:` and Outpost assigns a stable loopback port from a configured range (default `18000-18999`, set via a top-level `port_range:`). Allocation is first-fit (lowest free port), persisted in `state.json`, and reused unless the service definition changes. The range excludes the NGINX port `41999` and all declared `listen` ports; collisions between a `listen` port and `41999`, another `listen` port, or an allocated port are a validation error. If the range is exhausted, `apply` fails fast.
 
 In both cases, Outpost injects the bind address and persistent data path into the service environment as:
 
@@ -391,10 +393,10 @@ Fields:
 
 Rules:
 
-- `apply` reconciles to the pinned `sha`
-- `apply` never advances commits within a ref
-- `update` is the only command that advances `sha`
-- Outpost owns the managed clone under `~/.local/share/outpost/repos/<service>`
+- `apply` reconciles to the pinned `sha`; the only time `apply` writes `sha` is the one-time seed of an empty field (resolving `ref`→sha on first deploy)
+- `apply` never advances an already-set `sha` within a ref
+- `update` is the only command that advances an existing `sha`
+- Outpost owns the managed clone under `~/.local/share/outpost/repos/<service>`; clones are keyed by service name, so two services from the same repo (e.g. a monorepo with different `source.path`) get independent clones
 - local edits inside the managed clone are overwritten on update
 
 Because the config is also written by `update`, the user interacts primarily through the CLI or MCP rather than hand-editing deployment fields.
@@ -437,7 +439,7 @@ The CLI is the primary operator interface and the canonical engine used by highe
 - `outpost update <service> [--ref <ref>]`
 - `outpost validate`
 - `outpost status`
-- `outpost logs`
+- `outpost logs <service>`
 - `outpost ps`
 - `outpost routes`
 - `outpost exposure`
@@ -452,7 +454,7 @@ The CLI is the primary operator interface and the canonical engine used by highe
 - `init` bootstraps the host and platform
 - `apply` reconciles config into runtime state
 - `update` advances a service to a new commit and deploys it
-- `up` is `apply` plus start everything
+- `up` is `apply` plus `start` on **all** services (including unchanged-but-stopped ones)
 - `down` stops all services but keeps config, runtime state, clones, and data in place
 
 ---

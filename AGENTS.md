@@ -31,7 +31,7 @@ When the docs disagree, `rfc.md` is the authoritative reference for the exact co
 ## Target tech stack
 
 - **Language:** Python 3.12+
-- **Tooling:** `uv` (env + deps), `ruff` (format + lint), `ty` (strict type checking), `pytest`
+- **Tooling:** `uv` (env + deps), `ruff` (format + lint), `ty` (strict type checking; Astral, currently in beta), `pytest`
 - **Libraries:** Typer (CLI), Pydantic v2 (schema), Jinja2 (config templates), `mcp` SDK (agent interface), native `subprocess` (system calls — no heavy wrappers)
 
 ## Target codebase layout
@@ -56,7 +56,7 @@ These come straight from the docs and apply to all system-mutating code.
 
 **Fail-fast.** Catch `subprocess.CalledProcessError`, log the exact stderr, and exit the run loop with a non-zero code. Never attempt partial recovery mid-apply.
 
-**Atomicity.** Render configs to a temp dir, validate (`nginx -t`), then swap via `os.replace()`. State files (`state.json`) and config rewrites (`outpost.yaml`) must be written to a `.tmp` file and atomically renamed. v1 applies are all-or-nothing: on invalid config or failed startup health check, revert to the last-known-good backup.
+**Atomicity.** Render configs to a temp dir, validate (`nginx -t`), then swap via `os.replace()`. State files (`state.json`) and config rewrites (`outpost.yaml`) must be written to a `.tmp` file and atomically renamed. v1 applies are all-or-nothing: on invalid config or failed startup health check, revert to the last-known-good backup. NGINX is reloaded only after the startup health check passes, so live traffic never reaches a service that failed its gate. Concurrent-CLI file locking (e.g. `fcntl.flock`) is deferred — v1 assumes a single operator.
 
 **Idempotency.** `apply` compares the spec digest to the stored applied digest and no-ops if they match and services are up. `systemctl`/`git` wrappers must no-op when the desired state is already met.
 
@@ -67,7 +67,7 @@ These come straight from the docs and apply to all system-mutating code.
 ## Source-of-truth facts to keep straight
 
 - **Deployed SHA lives in the config** (`services.<name>.source.sha`), not in `state.json`. `state.json` holds only the applied spec digest, allocated ports, and apply timestamps — nothing else (no SQLite in v1).
-- **`apply` never advances commits; `update` is the only command that writes `source.sha`.** `apply` reconciles to the pinned sha; `update` fetches, resolves `ref`→sha, writes it, then applies.
+- **`apply` never advances an existing `sha`; `update` is the only command that advances it.** The sole exception is the one-time seed: on first deploy of a service whose `sha` is empty, `apply` resolves `ref`→sha and writes it once. Thereafter `apply` reconciles to the pinned sha; `update` fetches, resolves `ref`→sha, writes it, then applies.
 - **Rootless everywhere.** Services run as `systemd --user` units; no root, no sudoers rule in v1. NGINX is also a user unit listening on `127.0.0.1:41999`; cloudflared points at it.
 - **Ports:** declared via `listen:` or allocated from a loopback range; injected into the service as `PORT`, `ADDRESS`, and `DATA_DIR`. Platform-injected vars override operator env; declaring `listen` and also setting `PORT`/`ADDRESS` is a validation error.
 - **Health is a startup gate only** — it makes/breaks an apply. No passive/active probes, no live upstream pruning in v1.
