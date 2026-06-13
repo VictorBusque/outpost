@@ -132,7 +132,7 @@ exposure:
 
 ### Idempotency and state
 
-Operational artifacts (systemd unit files, NGINX config, cloudflared config) are real files. In addition the controller keeps a small JSON state sidecar next to the config (e.g. `.outpost/state.json`) holding only what files cannot cheaply answer: the digest of the last successfully applied spec and per-service last-known status timestamps. The **current deployed SHA lives in the config** (`source.sha`), which is the source of truth for what is deployed.
+Operational artifacts (systemd unit files, NGINX config, cloudflared config) are real files. In addition the controller keeps a tiny JSON state sidecar next to the config (e.g. `.outpost/state.json`) holding only two things: the digest of the last successfully applied spec, and minimal per-service status timestamps. **Nothing else** — no apply history, no operational metadata, no event log. If a question cannot be answered by the files plus those two values, it is out of scope for v1. The **current deployed SHA lives in the config** (`source.sha`), which is the source of truth for what is deployed.
 
 - **Idempotent apply**: `outpost apply` compares the spec's digest to the stored applied digest. If they match and services are up, the apply is a no-op. `apply` and `update` both update the stored digest, so an `apply` after an `update` stays a no-op.
 - **Atomicity**: applies are staged, validated, the current set backed up as last-known-good, then swapped. If the generated config is invalid or the startup health check fails, the apply reverts to the backup so the running system is left unchanged. v1 applies are all-or-nothing: an apply either fully succeeds or leaves the previous working state in place.
@@ -193,7 +193,7 @@ v1 has **no in-band traffic policy**: no rate limiting, header rewriting, or aut
 
 Public exposure is **Cloudflare Tunnel only** in v1; there is no provider abstraction. All public exposure routes through NGINX: the traffic path is `cloudflared -> nginx (127.0.0.1:41999) -> service`. The tunnel terminates TLS and owns the public certificate; NGINX listens on plain HTTP locally because the encrypted boundary is the tunnel. The platform does not issue, store, or renew certificates. A service with no route is still supervised by systemd and reachable on its localhost listener, but that is an unexposed service, not public exposure.
 
-Outpost renders a cloudflared config from `exposure.cloudflare` (`credentials_file` plus the `hosts` to expose) mapping each public hostname to the NGINX listener. Direct tunnel-to-service exposure and additional providers (e.g. ngrok) are deferred.
+Outpost renders a cloudflared config from `exposure.cloudflare` (`credentials_file` plus the `hosts` to expose). That's all Outpost does for the tunnel: cloudflared points at the local NGINX (`http://127.0.0.1:41999`), and Outpost only renders the host list — it does not run or supervise cloudflared, and manages nothing beyond that mapping. Direct tunnel-to-service exposure and additional providers (e.g. ngrok) are deferred.
 
 ### 4. Security posture
 
@@ -211,7 +211,7 @@ There are no passive/active health probes, no pulling of unhealthy services out 
 
 ### 6. Logging and status
 
-Outpost provides a unified status view (service state, route state, exposure state) and surfaces per-service logs from journald (`journalctl --user -u <service>`), so operators and agents can inspect problems without understanding low-level file layout.
+Outpost provides a unified status view: which services are running (and their systemd unit state), which routes are configured, and which hosts are exposed. "Route state" means only whether a route is configured, not a hidden routing state machine. It surfaces per-service logs from journald (`journalctl --user -u <service>`), so operators and agents can inspect problems without understanding low-level file layout.
 
 Required commands: `status`, `logs`, `routes`, `exposure`, `ps`.
 
@@ -241,8 +241,8 @@ The config is the source of truth for what is deployed: reading a service's `sou
 
 The managed clone lives under `.outpost/repos/<service>` (root configurable); Outpost owns it and local edits are overwritten on update, by design. Because the clone is ephemeral, the platform injects a separate persistent directory per service as `DATA_DIR` (default `.outpost/data/<service>`, available for `${...}` interpolation). All mutable state — databases, uploads, caches — must live under `$DATA_DIR`, which is never touched by updates.
 
-- **`outpost apply`** reconciles to the pinned `sha`: clone if missing, check out the sha, build if the clone changed, then render and activate configs. It never advances commits within a ref.
-- **`outpost update <service> [--ref <ref>]`** fetches, resolves the current `ref` (or `--ref`, which also writes `ref`) to a new sha, writes that sha into `source.sha`, then runs `apply`. On fetch/build/health failure the running service is left untouched and the update is reported failed.
+- **`outpost apply`** reconciles to whatever `source.sha` already says: clone if missing, check out the sha, build if the clone changed, then render and activate configs. `apply` never changes `source.sha` and never advances commits within a ref.
+- **`outpost update <service> [--ref <ref>]`** is the **only** command that changes `source.sha`: it fetches, resolves the current `ref` (or `--ref`, which also writes `ref`) to a new sha, writes that sha into `source.sha`, then runs `apply` (which now just reconciles to the value `update` just wrote). On fetch/build/health failure the running service is left untouched and the update is reported failed.
 
 Because the config is also written by `update`, the operator interacts primarily through the CLI/MCP rather than hand-editing YAML; if the config is version-controlled, each update appears as a commit (a free audit log — commit afterward). Private repositories use the operator's existing git/SSH credentials — Outpost runs `git` as the operator user; there is no credential manager in v1. Auto-update (polling or webhooks) is deferred to v2.
 
