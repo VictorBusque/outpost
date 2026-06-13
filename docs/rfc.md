@@ -2,9 +2,9 @@
 
 ## 1. Summary
 
-Outpost is a lightweight control plane for running git-sourced services on a single systemd Linux machine. It provides a CLI and MCP interface that turns a declarative YAML file into running systemd user services exposed through a managed NGINX reverse proxy and Cloudflare Tunnel.
+Outpost is a lightweight control plane for running git-sourced services on a single systemd Linux machine. It provides a CLI and an MCP interface that turns a declarative YAML file into running systemd user services exposed through a managed NGINX reverse proxy and Cloudflare Tunnel.
 
-Outpost is not a scheduler, container platform, or proxy system. It is a deterministic deployment engine that owns the lifecycle of small services on a single host.
+Outpost is not a scheduler, container platform, or proxy system. It is a deterministic deployment engine that owns the lifecycle of small services on one host.
 
 v1 is intentionally minimal: one machine, one configuration, one execution loop.
 
@@ -24,104 +24,123 @@ Everything else is derived from this loop.
 
 Outpost consists of:
 
-* A CLI binary (`outpost`)
-* A system daemon (optional lightweight coordinator, but mostly CLI-driven in v1)
-* A managed runtime directory (`~/.outpost`)
-* systemd user services
-* NGINX user instance
-* Cloudflare Tunnel (cloudflared)
+- a CLI binary (`outpost`)
+- a user-level runtime managed under the current user’s home directory
+- systemd user services
+- a user-level NGINX instance
+- Cloudflare Tunnel (`cloudflared`)
+
+Outpost is host-wide, but user-space: it runs on a single Linux machine under the operator account, without requiring a custom root daemon.
 
 ---
 
 ## 4. Installation Model
 
-### 4.1 install.sh
+### 4.1 `install.sh`
 
 Installation is performed via:
 
 ```bash
 curl -fsSL <repo>/install.sh | sh
-```
+````
 
 The installer is responsible for:
 
-* Installing the `outpost` CLI binary into `/usr/local/bin`
-* Ensuring required dependencies exist:
+- installing the `outpost` CLI binary into the PATH
+- ensuring required dependencies exist:
 
-  * git
-  * systemd (user mode)
-  * nginx (user instance capable)
-  * cloudflared
-* Installing missing dependencies where possible (or guiding installation if not)
-* Creating `~/.outpost` directory structure
-* Running `outpost init`
+  - git
+  - systemd user support
+  - nginx
+  - cloudflared
+- running `outpost init`
+
+### Privilege boundary
+
+`install.sh` may use `sudo` only for installing missing system packages, and only if:
+
+- `sudo` is available, and
+- the user agrees or the installer is explicitly configured to do so.
+
+If privilege escalation is not available, the installer must fail fast with exact remediation steps rather than silently degrading.
 
 ### Key design rule
 
-> `install.sh` makes the system runnable. `outpost init` makes it operational.
+> `install.sh` makes the host capable. `outpost init` makes the platform operational.
 
 ---
 
 ## 5. Initialization (`outpost init`)
 
-`init` is an opinionated bootstrap that ensures the system is fully functional.
+`outpost init` is an opinionated bootstrap that ensures the platform is ready to use.
 
 It performs:
 
 ### 5.1 Environment validation
 
-* git installed and authenticated (SSH or HTTPS working)
-* systemd user services enabled (`enable-linger`)
-* nginx available and runnable as user service
-* cloudflared installed and authenticated
+- verifies git is installed and working
+- verifies the user can authenticate to git remotes
+- verifies systemd user support is available
+- verifies nginx is installed and runnable as a user-level service
+- verifies cloudflared is installed and authenticated or can be authenticated
 
 ### 5.2 Bootstrap configuration
 
 If missing, `init`:
 
-* creates `~/.outpost/outpost.yaml`
-* creates default config structure
-* prepares nginx include directory
-* configures cloudflared base config pointing to local NGINX
+- creates `~/.config/outpost/outpost.yaml`
+- creates the Outpost runtime directory structure under `~/.local/share/outpost/`
+- prepares the nginx include directory and runtime config paths
+- prepares cloudflared config pointing to local NGINX
 
 ### 5.3 Service activation
 
-* starts or enables:
+- starts or enables the user-level NGINX instance
+- starts or enables cloudflared
+- ensures the platform is operational after init
 
-  * user nginx instance
-  * cloudflared tunnel
-* ensures system is reachable end-to-end after init
+### 5.4 MCP setup
 
-### 5.4 MCP setup (optional guided step)
-
-* offers to install MCP stdio entry command
-* prints config snippet for Claude Code / agent integration
+- offers a stdio MCP command that coding agents can invoke
+- prints integration guidance for tools such as Claude Code
 
 ---
 
-## 6. Runtime Directory Layout
+## 6. Directory Layout
 
-Outpost owns a single global runtime directory:
+Outpost uses split ownership:
 
+### User-owned config
+
+```text
+~/.config/outpost/
+  outpost.yaml
 ```
-~/.outpost/
-  configs/
-    outpost.yaml
-    nginx/
-    cloudflared/
+
+This file is the editable configuration source of truth. The user owns it and may version-control it if desired.
+
+### Outpost-owned runtime
+
+```text
+~/.local/share/outpost/
   repos/
     <service-name>/
+  data/
+    <service-name>/
+  generated/
+    nginx/
+    cloudflared/
+    systemd/
   docs/
-    *.md   (agent-readable system documentation)
+    *.md
   state.json
 ```
 
-### Rules
+Rules:
 
-* Fully managed by Outpost
-* Users should not manually edit contents
-* CLI and MCP are the only mutation interfaces
-* Outpost may overwrite anything inside this directory
+- `repos/`, `data/`, `generated/`, `docs/`, and `state.json` are managed by Outpost
+- the user should not edit runtime files directly
+- the CLI and MCP are the supported mutation interfaces for Outpost-managed state
 
 ---
 
@@ -133,22 +152,20 @@ Outpost defines two primitives:
 
 A service is:
 
-* a git repository
-* a commit SHA
-* a build step (optional)
-* a command
-* a port (explicit or assigned)
-* environment variables
+- one git repository
+- one commit SHA
+- one command
+- one optional build step
+- one port
+- environment variables
 
 Each service maps to exactly one systemd user unit.
-
----
 
 ### 7.2 Route
 
 A route maps:
 
-* host + path → service
+- host + path → service
 
 Routes compile into NGINX configuration.
 
@@ -156,64 +173,63 @@ Routes compile into NGINX configuration.
 
 ## 8. Configuration Model
 
-Single file:
+The source of truth is:
 
-```
-~/.outpost/configs/outpost.yaml
+```text
+~/.config/outpost/outpost.yaml
 ```
 
 This file is:
 
-* source of truth for system state
-* mutated by CLI (e.g. `update` updates `source.sha`)
-* optionally version-controlled by user, but not required
+- the canonical configuration for the platform
+- user-editable
+- optionally version-controlled by the user
+- mutated by Outpost commands when needed
 
-Outpost CLI is the authoritative writer.
+Outpost CLI is the authoritative writer for deployment-related fields such as `source.sha`.
 
 ---
 
 ## 9. Execution Model
 
-### 9.1 apply
+### 9.1 `apply`
 
 `outpost apply` performs a full reconciliation:
 
-1. Parse YAML
-2. Validate schema
-3. For each service:
+1. parse YAML
+2. validate schema
+3. for each service:
 
-   * clone repo if missing
-   * checkout pinned `sha`
-   * run build step (if defined)
-4. Generate systemd user units
-5. Generate NGINX config
-6. Validate NGINX config
-7. Atomically replace runtime config
-8. Reload systemd user daemon
-9. Restart affected services
-10. Reload NGINX
-11. Start cloudflared if needed
-12. Run startup health check (if defined)
+   - clone repo if missing
+   - checkout pinned `sha`
+   - run build step, if defined
+4. generate systemd user units
+5. generate NGINX config
+6. validate NGINX config
+7. atomically replace runtime config
+8. reload systemd user daemon
+9. restart affected services
+10. reload NGINX
+11. start cloudflared if needed
+12. run startup health check, if defined
 
 ### Failure model
 
-* If config invalid → rollback to last known good config
-* If service fails startup health → rollback system state
-* Otherwise system is committed
+- if config validation fails, rollback to the last known good runtime set
+- if startup health fails, rollback to the last known good runtime set
+- otherwise the apply is committed
 
----
+The result is all-or-nothing for v1.
 
-### 9.2 update
+### 9.2 `update`
 
 `outpost update <service>`:
 
-1. fetch latest commit from `source.ref`
-2. update `source.sha` in config
+1. fetch the latest commit from `source.ref`
+2. write the resulting SHA into `source.sha` in the config
 3. run `apply`
 
-If any step fails:
-
-* system remains unchanged
+If any step fails, the running system remains unchanged.
 
 ---
 
@@ -221,73 +237,58 @@ If any step fails:
 
 ### Cloudflare Tunnel only
 
-Outpost assumes a single exposure mechanism:
+Outpost assumes one exposure mechanism in v1:
 
-* cloudflared connects to local NGINX
-* NGINX handles routing
+- `cloudflared` connects to local NGINX
+- NGINX handles routing
 
 Flow:
 
-```
+```text
 Internet → Cloudflare Tunnel → NGINX (localhost) → Service
 ```
 
-Outpost only generates configuration; it does not manage TLS, certificates, or routing logic inside Cloudflare.
+Outpost renders the cloudflared config from the exposure section of the YAML. It does not manage public TLS certificates or expose multiple tunnel providers in v1.
 
 ---
 
 ## 11. NGINX Model
 
-* single user-level nginx instance
-* listens on fixed local port (e.g. 41999)
-* includes generated config directory
-* purely reverse proxy
+- single user-level NGINX instance
+- listens on a fixed local port, default `127.0.0.1:41999`
+- includes generated config from the Outpost runtime directory
+- acts only as a reverse proxy and route dispatcher
 
-No advanced features in v1:
+v1 does not include:
 
-* no rate limiting
-* no auth middleware
-* no header manipulation
-* no upstream balancing logic
+- rate limiting
+- auth middleware
+- header rewriting
+- upstream balancing logic
+- reusable policy chains
 
 ---
 
 ## 12. Systemd Model
 
-* systemd **user units only**
-* one unit per service
-* managed via CLI
-* restart policies handled via systemd
+- systemd **user units only**
+- one unit per service
+- managed via CLI
+- restart behavior delegated to systemd
 
 Outpost does not implement its own process supervisor.
 
 ---
 
-## 13. MCP Interface
+## 13. Health Model
 
-Outpost exposes a **stdio MCP server**.
+Health in v1 is a **startup check only**.
 
-### Usage model
+- if a service defines `health`, `apply` waits for the check to pass before considering the deploy successful
+- if no `health` is defined, `apply` succeeds once systemd reports the unit active
+- if the check never passes, `apply` fails and the previous working state is restored
 
-* CLI starts MCP server on demand
-* Agents connect via stdio transport
-* Used by coding agents (e.g. Claude Code)
-
-### MCP tools
-
-* list_services
-* get_service_status
-* start_service
-* stop_service
-* restart_service
-* update_service
-* apply_config
-* validate_config
-* show_routes
-* show_exposure
-* tail_logs
-
-MCP is a thin wrapper over CLI internals.
+There are no passive or active traffic health checks, no route quarantine state, and no live upstream pruning in v1.
 
 ---
 
@@ -295,96 +296,270 @@ MCP is a thin wrapper over CLI internals.
 
 Outpost maintains minimal state in:
 
+```text
+~/.local/share/outpost/state.json
 ```
-~/.outpost/state.json
-```
 
-Stores:
+This file stores only what cannot be reliably derived from config or runtime files:
 
-* last applied config hash
-* per-service deployed SHA
-* timestamps of last successful apply
+- the last applied config hash
+- allocated port assignments for services that omit `listen`
+- timestamps of recent successful applies
 
-No history, no analytics, no event store.
+It does **not** store the deployed SHA. The deployed SHA lives in `source.sha` inside `outpost.yaml` and is the source of truth for versioned deployment state.
 
----
-
-## 15. CLI Model
-
-### Required commands
-
-* `outpost init`
-* `outpost apply`
-* `outpost update <service>`
-* `outpost status`
-* `outpost logs`
-* `outpost ps`
-* `outpost routes`
-* `outpost exposure`
-* `outpost start|stop|restart <service>`
-* `outpost up`
-* `outpost down`
+No history store, no analytics, no event database, no SQLite in v1.
 
 ---
 
-## 16. Lifecycle Semantics
+## 15. Listener and Port Model
 
-### up
+Each service has exactly one bind address.
 
-* full system bring-up
-* equivalent to apply + start everything
+The address is resolved in one of two ways:
 
-### down
+- **Declared**: set `listen:` to `host:port` or a unix socket path
+- **Allocated**: omit `listen:` and Outpost assigns a stable loopback port from a configured range
 
-* stop all services
-* preserve config and state
+In both cases, Outpost injects the bind address and persistent data path into the service environment as:
 
----
+- `PORT`
+- `ADDRESS`
+- `DATA_DIR`
 
-## 17. Security Model
+Platform-injected variables take precedence over user-defined environment values. Declaring `listen` and also setting `PORT` or `ADDRESS` is a validation error.
 
-Security is structural, not policy-driven:
-
-* services only bind localhost
-* NGINX is single ingress point
-* only exposed hosts are reachable via tunnel
-* no secrets management layer in v1
+Allocated ports are stable across restarts and re-applies unless the service definition changes.
 
 ---
 
-## 18. Non-Goals (v1)
+## 16. Environment and Secrets
+
+Services receive environment variables in Docker Compose style:
+
+- `services.<name>.environment`
+
+  - inline map or list
+  - supports `${VAR}` interpolation
+  - resolved at generate time from the host environment plus platform-injected values
+- `services.<name>.env_file`
+
+  - one or more env files loaded verbatim
+
+Precedence:
+
+1. platform-injected variables
+2. inline `environment`
+3. later `env_file` entries
+4. earlier `env_file` entries
+
+v1 ships no built-in secret store. The platform passes env values through to the generated unit files without interpreting them.
+
+Safety rules:
+
+- `status` and `logs` never echo environment contents
+- generated unit files should reference env files rather than copy secrets into broadly-readable runtime files where avoidable
+
+---
+
+## 17. Source and Updates
+
+Every service is git-sourced.
+
+A `source:` block is required on every service and accepts only git.
+
+Fields:
+
+- `source.git`
+
+  - remote URL, HTTPS or SSH
+- `source.ref`
+
+  - branch or tag tracked by `update`
+  - omit to track the remote default branch
+- `source.sha`
+
+  - exact commit currently deployed
+  - written by Outpost
+  - may be empty before first deploy
+- `source.path`
+
+  - optional subdirectory within the repo for monorepos
+- `build`
+
+  - optional command run after checkout and before start
+
+Rules:
+
+- `apply` reconciles to the pinned `sha`
+- `apply` never advances commits within a ref
+- `update` is the only command that advances `sha`
+- Outpost owns the managed clone under `~/.local/share/outpost/repos/<service>`
+- local edits inside the managed clone are overwritten on update
+
+Because the config is also written by `update`, the user interacts primarily through the CLI or MCP rather than hand-editing deployment fields.
+
+Private repositories use the operator’s existing git credentials. Outpost runs git as the operator user and does not provide a credential manager in v1.
+
+The persistent service data directory is separate from the managed clone:
+
+- `~/.local/share/outpost/data/<service>/`
+
+Mutable application state such as databases, uploads, caches, and user-generated files must live under `DATA_DIR`. Updates may replace the repo contents, but they must not touch service data.
+
+---
+
+## 18. Service Lifecycle
+
+Required lifecycle operations:
+
+- start one service
+- stop one service
+- restart one service
+- check status for one service
+- start all services
+- stop all services
+- restart all services
+- tail logs for one service
+
+These map to `systemctl --user` and `journalctl --user`.
+
+---
+
+## 19. CLI Model
+
+The CLI is the primary operator interface and the canonical engine used by higher-level integrations.
+
+### Required v1 command surface
+
+- `outpost init`
+- `outpost apply`
+- `outpost update <service> [--ref <ref>]`
+- `outpost validate`
+- `outpost status`
+- `outpost logs`
+- `outpost ps`
+- `outpost routes`
+- `outpost exposure`
+- `outpost start <service>`
+- `outpost stop <service>`
+- `outpost restart <service>`
+- `outpost up`
+- `outpost down`
+
+### Semantics
+
+- `init` bootstraps the host and platform
+- `apply` reconciles config into runtime state
+- `update` advances a service to a new commit and deploys it
+- `up` is `apply` plus start everything
+- `down` stops all services but keeps config, runtime state, clones, and data in place
+
+---
+
+## 20. MCP and Coding-Agent Integration
+
+Outpost exposes a stdio MCP server.
+
+### Usage model
+
+- the CLI provides a command that starts the MCP server over stdio
+- coding agents connect to it directly
+- this is intended for tools such as Claude Code
+
+### MCP v1 tools
+
+- `list_services`
+- `get_service_status`
+- `start_service`
+- `stop_service`
+- `restart_service`
+- `update_service`
+- `apply_config`
+- `validate_config`
+- `show_routes`
+- `show_exposure`
+- `tail_logs`
+
+The MCP server is a thin adapter over the same internal library used by the CLI.
+
+---
+
+## 21. Security Posture
+
+Security in v1 is structural, not policy-driven:
+
+- services bind to localhost
+- NGINX is the only local ingress point
+- Cloudflare Tunnel is the only public exposure mechanism
+- only hosts listed in exposure are public
+
+v1 does not include:
+
+- upstream TLS/mTLS
+- built-in auth middleware
+- rate limiting
+- secret management
+- multi-tenant isolation
+
+---
+
+## 22. Runtime Targets
+
+### Primary target
+
+- systemd Linux only
+- Raspberry Pi
+- VPS
+- homelab box
+- developer desktop
+
+### Out of scope for v1
+
+- Android / Termux
+- macOS
+- Windows
+
+---
+
+## 23. Non-Goals for v1
 
 Explicitly excluded:
 
-* replicas or clustering
-* load balancing or upstream pools
-* middleware/policy system
-* multi-provider tunnels
-* rollback system
-* containers
-* cross-host orchestration
-* advanced health routing or runtime traffic control
+- replicas
+- load balancing
+- template units
+- policy / middleware system
+- rollback as a first-class command
+- multi-provider tunnel support
+- containers
+- cross-host orchestration
+- advanced health-driven routing
+- passive health checks
+- dynamic traffic quarantine
+- built-in secret store
 
 ---
 
-## 19. Success Criteria
+## 24. Success Criteria
 
 Outpost v1 is successful if a user can:
 
-1. install via curl script
+1. install via `curl ... | sh`
 2. run `outpost init`
-3. define a YAML file with services + routes
+3. define a YAML file with services and routes
 4. deploy git-sourced services
-5. expose them via Cloudflare Tunnel
-6. update a service via git commit advancement
-7. observe logs and status via CLI or MCP
-
-without ever writing systemd or NGINX config manually.
+5. expose selected services through Cloudflare Tunnel
+6. update a service by advancing its git ref
+7. inspect status and logs through the CLI or MCP
+8. do all of this without hand-writing systemd, NGINX, or cloudflared configuration
 
 ---
 
-## 20. Final System Definition
+## 25. Final System Definition
 
 Outpost v1 is:
 
-> a deterministic deployment engine that turns a YAML file into git-sourced systemd services behind a user-level NGINX, exposed via Cloudflare Tunnel, operated through CLI and MCP.
+> a deterministic deployment engine that turns a YAML file into git-sourced systemd user services behind a user-level NGINX, exposed through Cloudflare Tunnel, operated through CLI and MCP.
+
+The product’s job is to make a small Linux service stack feel boring, predictable, and safe to operate.
