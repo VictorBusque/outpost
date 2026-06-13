@@ -2,87 +2,86 @@
 
 ## Overview
 
-This product is a lightweight micro-platform for running and exposing small services on systemd Linux hosts — Raspberry Pi-class devices, VPSes, homelab boxes, and developer desktops. The platform is designed around three proven components: NGINX for ingress, routing, load balancing, and edge policy; systemd for process supervision; and a tunnel provider such as Cloudflare Tunnel for public exposure without direct port forwarding.
+Outpost is a lightweight control plane for running and exposing small **git-sourced services** on a single systemd Linux host — a Raspberry Pi, a VPS, a homelab box, or a developer desktop. It is not a new proxy, init system, or tunnel. It is a thin CLI (with an MCP surface for coding agents) that takes one declarative YAML file and turns it into running systemd units plus NGINX reverse-proxy config.
 
-The product itself is not a new proxy, init system, or tunnel. It is a thin control plane and CLI that takes a declarative service specification, validates it, generates backend configuration, applies changes safely, and exposes a structured management interface to human operators and coding agents via CLI and MCP.
+v1 is deliberately small. It implements exactly one loop: **a YAML file defines services and routes, and Outpost turns that into running processes behind NGINX on one Linux machine.** Everything that would turn it into a mini-orchestrator is deferred.
 
 ## Problem
 
-There is a gap between raw self-hosting primitives and a coherent, low-footprint platform for small Linux service stacks. Existing solutions either assume a heavier substrate (Kubernetes, Nomad, full self-hosted PaaSes like Coolify), depend on a container runtime that is extra weight when services are just Go binaries or Python apps, or leave the operator hand-authoring the unholy trinity of systemd units, NGINX config, and cloudflared YAML — all of which drift apart over time and are awkward for an agent to operate safely.
+There is a gap between raw self-hosting primitives and a coherent, low-footprint way to run small service stacks on Linux. Existing solutions either assume a heavier substrate (Kubernetes, Nomad, full self-hosted PaaSes like Coolify), depend on a container runtime that is extra weight when a service is just a Go binary or a Python app, or leave the operator hand-authoring the unholy trinity of systemd units, NGINX config, and cloudflared YAML — which drift apart over time and are awkward for an agent to operate safely.
 
-The user need is a single configuration-driven workflow that can define services, routes, exposure, and lifecycle policy once, then render the appropriate NGINX, systemd, and tunnel configuration. The resulting system should feel like a tiny PaaS for low-traffic personal infrastructure, developer tooling, lightweight APIs, bots, dashboards, and agent-facing services — without mandating a container runtime.
+The user need is a single configuration-driven workflow that defines services and routes once, then renders the appropriate systemd and NGINX configuration. The result should feel like a tiny, boring PaaS for low-traffic personal infrastructure, developer tooling, lightweight APIs, bots, dashboards, and agent-facing services — without mandating a container runtime.
 
 ## Goals
 
-### Product goals
-
-- Provide one declarative source of truth for services, routes, exposure, and runtime policy.
-- Run reliably on systemd Linux (Raspberry Pi, VPS, homelab, desktop) with minimal host assumptions and no container-runtime requirement.
-- Reuse mature infrastructure components rather than rebuilding them: NGINX for ingress and load balancing, systemd for service supervision, and Cloudflare Tunnel or similar for exposure.
-- Own the full source-to-runtime lifecycle for every service: clone from git, build, inject environment, update, and rollback. All services are git-sourced and managed by the platform.
+- Provide one declarative source of truth for services and routes.
+- Run on systemd Linux (Raspberry Pi, VPS, homelab, desktop) with minimal host assumptions and no container-runtime requirement.
+- Reuse mature components rather than rebuilding them: NGINX for ingress, systemd for supervision, Cloudflare Tunnel for exposure.
+- Own the git lifecycle for every service: clone, build, update.
 - Offer an ergonomic CLI for operators and a structured MCP surface for coding agents.
 
-### Technical goals
+### The four primitives
 
-- Generate deterministic configs for NGINX, systemd units, and supported tunnel providers from a higher-level platform spec.
-- Support safe validation and apply workflows, including graceful NGINX reloads, `systemctl daemon-reload`, and service-level lifecycle actions.
-- Keep the source model logical by avoiding backend-native nouns such as `systemd_unit`, `docker_image`, or raw NGINX directives — the platform generates these under the hood.
+v1 has exactly four concepts:
+
+- **Service** — one git repo, one command, one optional build step, one port, and environment variables.
+- **Route** — a `host`/`path` mapping to a service.
+- **apply** — render config, check out the pinned commit, build if needed, write the systemd and NGINX files, reload, and start.
+- **update** — advance the tracked git ref to a new commit, then apply it.
 
 ## Non-goals
 
-- Replacing Kubernetes, Nomad, or a full container orchestration platform.
-- Providing a multi-tenant enterprise control plane, billing system, or developer portal.
-- Building a new reverse proxy, new process supervisor, or new public tunnel network.
-- Cross-OS portability beyond systemd Linux in v1. macOS (launchd) and Android/Termux (no systemd) are deferred; Windows is out of scope.
+For v1, the following are explicitly out of scope (reasonable later additions, but they add state machines or platform complexity that make the first version harder to ship):
+
+- **Replicas / load balancing / template units.** One service = one instance, one port.
+- **Policy and middleware blocks** — rate limiting, header rewriting, auth middleware, reusable chains.
+- **A tunnel-provider abstraction or multi-provider exposure.** Cloudflare Tunnel only.
+- **Rollback** as a first-class command or rollback-history state.
+- **Advanced, health-driven routing** — passive/active health checks, maintenance/quarantine states, degraded applies.
+- **Containers**, multi-host/clustering, and a built-in secret store.
+- Cross-OS portability beyond systemd Linux. macOS (launchd) and Android/Termux (no systemd) are deferred; Windows is out of scope.
 
 ## Target users
 
-The primary users are technical operators and developers who want to run small service stacks on Linux hosts with a consistent, config-driven workflow. This includes individual engineers, homelab users, self-hosters, AI developers exposing local services, and teams building personal infrastructure tooling or agent endpoints.
+Technical operators and developers who want to run small service stacks on a Linux host with a consistent, config-driven workflow: individual engineers, homelab users, self-hosters, AI developers exposing local services, and teams building personal infrastructure tooling or agent endpoints.
 
-The first adopter profile is a highly technical developer who values config-driven infrastructure, lightweight stacks (no container runtime), and the ability to automate operations through a CLI or coding agent integration. Note that outpost is a **deployment** platform for git-sourced services, not a rapid local-development runner — it is optimized for running stable services, not for hot-reload inner-loop iteration (see "Source and updates").
+Outpost is a **deployment** platform for git-sourced services, not a rapid local-development runner: every code change must be committed and pushed before it reaches the running service, so hot-reload inner-loop iteration is intentionally out of scope (see "Source and updates").
 
 ## Core product concept
 
-The platform owns only the orchestration glue. It ingests a declarative YAML file, compiles it into runtime-specific configurations, applies the resulting plan safely, and exposes state and control via CLI and MCP.
+Outpost owns only the orchestration glue. It ingests a declarative YAML file, compiles it into systemd units and NGINX config, applies the result safely, and exposes state and control via CLI and MCP. The runtime stack is:
 
-The runtime stack is:
-
-- **NGINX**: reverse proxy, routing, path and host dispatch, load balancing, TLS termination where applicable, rate limiting, and edge-level security controls.
-- **systemd**: service supervision, process lifecycle control, automatic restarts on exit with backoff and rate-limiting, and service-level operational commands via `systemctl`. Structured logs flow to journald.
-- **Tunnel provider**: default public exposure via Cloudflare Tunnel, with a pluggable abstraction for alternatives such as ngrok.
-- **Platform controller**: validation, generation, apply, status, journald integration, source/update lifecycle, health policy, and agent-facing API surface.
+- **NGINX**: reverse proxy and host/path routing to services.
+- **systemd (user units)**: process supervision and lifecycle.
+- **Cloudflare Tunnel**: the only public-exposure path.
+- **Platform controller**: validation, generation, apply, status, journald integration, and the git lifecycle.
 
 ## Platform architecture
 
 ### Declarative config
 
-The source of truth is a platform YAML file describing services, listeners, routes, exposure, health semantics, and lifecycle policy. The schema must express logical platform concepts rather than backend-specific implementation details so that the same config compiles cleanly to NGINX, systemd, and tunnel artifacts.
+The source of truth is a platform YAML file describing services, routes, and exposure. The schema expresses logical concepts and compiles to systemd units and NGINX config.
 
-Representative logical sections include:
+- `services`: required `source` (git; see "Source and updates") with optional `build`, `command`, optional `args`, `listen` (see "Listeners and ports"), `restart`, `environment` / `env_file` (Docker Compose style), and optional `health`.
+- `routes`: a list of virtual-host objects; each vhost has a `host` (literal or wildcard) and a `paths` map of path prefix → service. See "Route shape".
+- `exposure`: Cloudflare Tunnel config and the list of hosts exposed publicly.
 
-- `services`: command, args, environment (inline `environment` map/list with `${VAR}` interpolation, plus `env_file` references, Docker Compose style), `listen`/replica behavior (see "Listeners and ports"), required `source` (git; see "Source and updates") with optional `build`, restart semantics, optional replicas.
-- `routes`: a list of virtual-host objects; each vhost has a `host` (or is the default/catch-all vhost) and a `paths` map. See "Route shape".
-- `exposure`: public vs local-only behavior, tunnel provider choice, domains, and exposure rules.
-- `health`: process-level and endpoint-level checks used by the platform controller.
-
-(Platform state — applied config digest, apply history, status snapshots — is tracked separately in a JSON state sidecar, not in the source spec; see "Idempotency and state".)
+(Platform state — the applied-config digest and per-service status — is tracked in a JSON state sidecar, not in the spec; see "Idempotency and state".)
 
 ### Example config
-
-A representative spec exercising the decisions below — pinned and allocated listeners, replicas, Compose-style env, health, a policy, a wildcard vhost, a local-only host, and Cloudflare exposure:
 
 ```yaml
 version: 1
 
 services:
-  web:                              # single replica, operator-pinned port
+  web:                              # declared (operator-pinned) port
     source:
       git: https://github.com/me/web.git
       ref: main
-      sha: 9f2c1a4                      # deployed commit; written by outpost
-    command: ./bin/web serve          # runs in <clone>/<source.path> (repo root if omitted)
+      sha: 9f2c1a4                  # deployed commit; written by outpost
+    command: ./bin/web serve        # runs in <clone>/<source.path> (repo root if omitted)
     listen: 127.0.0.1:8080
-    args: ["--addr", "${ADDRESS}"]   # platform injects ADDRESS=127.0.0.1:8080
+    args: ["--addr", "${ADDRESS}"]  # platform injects ADDRESS=127.0.0.1:8080
     restart: always
     environment:
       LOG_LEVEL: info
@@ -90,36 +89,23 @@ services:
     health:
       http: { path: /healthz }
 
-  api:                              # git-managed; three replicas, platform allocates ports
+  api:                              # allocated port; binds $PORT
     source:
       git: https://github.com/me/api.git
-      ref: main                        # the update target
-      sha: b7e0d33                      # the deploy target; apply checks this out exactly
+      ref: main                     # the update target
+      sha: b7e0d33                  # the deploy target; apply checks this out exactly
     build: pip install -r requirements.txt
-    command: python -m api          # runs in <clone>/<source.path> (repo root if omitted)
-    replicas: 3                     # listen: omitted → 3 allocated ports, each binds $PORT
-    restart: always
+    command: python -m api
     environment:
-      DATABASE_URL: postgres://api@127.0.0.1:5432/api   # external multi-writer DB; a file DB in $DATA_DIR needs replicas:1
+      DATABASE_URL: postgres://api@127.0.0.1:5432/api
     health:
-      http: { path: /healthz, timeout: 2s }
+      http: { path: /healthz }
 
 routes:
   - host: app.example.com           # public vhost
     paths:
-      /api:
-        to: api                     # targets a 3-replica service → NGINX upstream auto-built
-        policy:
-          rate_limit: { rps: 100, burst: 50 }
-          request_headers:
-            add: { X-Forwarded-By: outpost }
-          auth:
-            basic: ./secrets/users.htpasswd
-      /:
-        to: web
-  - host: "*.example.com"           # wildcard vhost
-    paths:
-      /: { to: web }
+      /api: { to: api }
+      /:    { to: web }
   - host: admin.local               # local/LAN only: in routes, absent from exposure
     paths:
       /: { to: web }
@@ -130,98 +116,62 @@ exposure:
     hosts: [app.example.com]        # only this vhost is public via the tunnel
 ```
 
-The `/api` route targets a 3-replica service, so the platform builds an NGINX upstream across all three allocated ports; load balancing is native NGINX. `admin.local` has a route but is absent from `exposure.hosts`, so NGINX serves it locally only and the tunnel never sees it.
+`admin.local` has a route but is absent from `exposure.hosts`, so NGINX serves it locally only and the tunnel never sees it.
 
 ### Internal pipeline
 
-The controller should implement a staged pipeline:
+`outpost apply` implements a staged pipeline:
 
 1. Parse YAML into an internal model.
 2. Validate schema and topology.
-3. **Materialize sources**: for each service, ensure the clone at `.outpost/repos/<service>` is checked out at exactly the **deployed `sha`** — **clone and run `build:` if missing**; **check out (and rebuild) if `sha` changed**; if `sha` is empty (first deploy), resolve the current `ref`→sha, write it back into the config, and build. `apply` never advances commits within a ref — pulling the latest is `update`'s job, not `apply`'s.
-4. Generate target configs.
-5. Produce a plan/diff.
-6. Apply atomically.
-7. Reload or restart affected components (`systemctl daemon-reload` + start/restart units; reload NGINX).
-8. Report final status.
-
-This keeps the platform's internals backend-agnostic while targeting NGINX, systemd, and one or more tunnel providers.
+3. **Materialize sources**: for each service, ensure the clone at `.outpost/repos/<service>` is checked out at exactly the **pinned `sha`** — clone and run `build:` if missing; check out (and rebuild) if `sha` changed; if `sha` is empty (first deploy), resolve the current `ref`→sha, write it back into the config, and build. `apply` never advances commits within a ref — pulling the latest is `update`'s job.
+4. Generate target configs (systemd units, NGINX server blocks, cloudflared config).
+5. Test the NGINX config (`nginx -t`).
+6. Apply atomically: swap in the staged set, `systemctl --user daemon-reload`, start/restart the affected services, and reload NGINX.
+7. Run the startup health check (if defined). On success the route is active and the apply succeeds; on failure the previous working state is restored and the apply is reported failed.
 
 ### Idempotency and state
 
-Operational artifacts (systemd unit files, NGINX config, tunnel config) are real files — that is what systemd, NGINX, and the tunnel agent read. In addition the controller keeps a small state sidecar as a single JSON file written next to the config (e.g. `.outpost/state.json`), holding only what files cannot cheaply answer: the digest of the last successfully applied spec, a bounded rolling history of recent applies, per-service last-known status timestamps, and (for rollback) the bounded recent deployed-SHA history. The **current** deployed SHA is not stored here — it lives in the config (`source.sha`), which is the source of truth for what is deployed.
+Operational artifacts (systemd unit files, NGINX config, cloudflared config) are real files. In addition the controller keeps a small JSON state sidecar next to the config (e.g. `.outpost/state.json`) holding only what files cannot cheaply answer: the digest of the last successfully applied spec and per-service last-known status timestamps. The **current deployed SHA lives in the config** (`source.sha`), which is the source of truth for what is deployed.
 
-- **Idempotent apply**: `outpost apply` compares the desired spec's digest to the stored applied digest. If they match and services are up, the apply is a no-op.
-- **Atomicity**: applies are staged, validated (`nginx -t`), the current set backed up as last-known-good, then swapped and reloaded. If the generated config is invalid or cannot be activated, the apply reverts to that backup before anything live changes — this is the config-revert guarantee. A service that activates but never becomes healthy does **not** revert: the new config stays live, only that service's route is disabled, and the apply is reported degraded (see "Apply semantics"). This is not a true cross-system transaction, but a safe swap over a known-good baseline, with revert reserved for config/activation failure and per-route quarantine for health failure.
-- **No SQLite in v1**: a query engine is unnecessary for digest/history/status. SQLite (for queryable long history) is deferred to v2 if needs grow. The JSON sidecar is portable, readable, git-ignoreable, and written atomically via temp-file rename.
+- **Idempotent apply**: `outpost apply` compares the spec's digest to the stored applied digest. If they match and services are up, the apply is a no-op. `apply` and `update` both update the stored digest, so an `apply` after an `update` stays a no-op.
+- **Atomicity**: applies are staged, validated, the current set backed up as last-known-good, then swapped. If the generated config is invalid or the startup health check fails, the apply reverts to the backup so the running system is left unchanged. v1 applies are all-or-nothing: an apply either fully succeeds or leaves the previous working state in place.
+- **No SQLite in v1**: a query engine is unnecessary for digest/status. SQLite is deferred to v2 if needs grow. The JSON sidecar is portable, readable, git-ignoreable, and written atomically via temp-file rename.
 
 ## Functional requirements
 
 ### 1. Service management
 
-The platform must support defining and running multiple long-lived services, including Go binaries and Python applications. Each service must be startable, stoppable, restartable, and inspectable individually or as part of the full stack through the CLI.
+Each service is one git repo run as one process behind one port. Services are startable, stoppable, restartable, and inspectable individually or as part of the full stack through the CLI.
 
 #### Listeners and ports
 
-Each service has a bind address the platform always knows; it is used for health checks and to build the NGINX upstream. The address is resolved one of two ways:
+Each service has one bind address the platform always knows; it is used for the health check and the NGINX upstream. The address is resolved one of two ways:
 
 - **Declared** — set `listen:` to `host:port` or a unix socket path. The operator must ensure the binary binds there.
 - **Allocated** — omit `listen:` and the platform assigns a port on `127.0.0.1` from a default range (configurable, e.g. `18000-18999`).
 
-In both cases the platform injects the address into the service environment (via the generated unit's `Environment=`) as `PORT`, `ADDRESS` (`host:port`), and (for replicas) `OUTPOST_REPLICA_INDEX` and `OUTPOST_REPLICAS`, so a binary can bind `${PORT}` without restating the port in its flags. Platform-injected vars take precedence over operator `environment`/`env_file`; declaring `listen` and also setting `PORT`/`ADDRESS` in environment is a validation error.
-
-Rules:
-
-- `replicas > 1` requires allocation (omit `listen:`). The platform generates a systemd template unit (e.g. `outpost-api@.service`) and instantiates `outpost-api@1`..`@N`, each with its own port discovered via the injected env. Explicit multi-port is not supported.
-- Allocated ports are stable across restarts and re-applies (persisted in the state sidecar) unless the service definition changes, so NGINX upstreams do not churn.
-- Default listener transport is TCP on loopback; unix sockets are opt-in via `listen: <path>`.
+In both cases the platform injects the address into the service environment (via the generated unit's `Environment=`) as `PORT` and `ADDRESS` (`host:port`), so a binary can bind `${PORT}` without restating the port in its flags. Platform-injected vars take precedence over operator `environment`/`env_file`; declaring `listen` and also setting `PORT`/`ADDRESS` in environment is a validation error. Default transport is TCP on loopback; unix sockets are opt-in via `listen: <path>`. Allocated ports are stable across restarts and re-applies (persisted in the state sidecar) unless the service definition changes.
 
 `restart:` maps to the generated unit's `Restart=` directive, and the controller sets sane `RestartSec=` / `StartLimitBurst` / `StartLimitIntervalSec=` defaults so a crash-looping service is throttled rather than hammering.
 
 #### Privilege model
 
-By default the platform targets **systemd user units** (`systemctl --user`), so services run as the operator without root. The controller expects `loginctl enable-linger` so user services survive logout and start at boot. System units (root, `systemctl`) are supported as an opt-in for operators who want services managed at the system level.
+The platform targets **systemd user units only** (`systemctl --user`); services run as the operator without root. The controller expects `loginctl enable-linger` so user services survive logout and start at boot. System units (root) are not supported in v1.
 
 ##### NGINX privilege bridge
 
-NGINX is managed as a **systemd user unit** too — an instance the operator runs (no root), rather than the system NGINX. Because the tunnel terminates TLS, NGINX only needs to listen on a **high local port** (e.g. `127.0.0.1:8080`) or a unix socket, so no privileged bind is required. The controller writes all server blocks into a **user-owned directory** (e.g. `~/.config/outpost/nginx/`) and the user NGINX loads them via a single `include` line.
+NGINX is managed as a **systemd user unit** too — an instance the operator runs (no root). Because the tunnel terminates TLS, NGINX only needs to listen on a distinctive high local port (default `127.0.0.1:41999`, distinct from any service listener) or a unix socket, so no privileged bind is required. The controller writes all server blocks into a **user-owned directory** (e.g. `~/.config/outpost/nginx/`) and the user NGINX loads them via a single `include` line. Cloudflared's ingress points at this NGINX (`http://127.0.0.1:41999`).
 
-This keeps the no-root-by-default model intact: outpost only ever writes inside its own directory and reloads via `systemctl --user reload` (a user unit it supervises, like any other service). There is no sudo and no sudoers rule in v1. A documented **one-time setup step** installs the `include` line and starts the user NGINX unit — analogous to `enable-linger`, it is a host prerequisite, not an ongoing privileged operation. (If LAN-direct exposure on standard ports :80/:443 becomes a priority, revisit a system-NGINX + scoped-sudoers path at that point; it is coupled to the deferred LAN/direct mode.)
+This keeps the no-root model intact: Outpost only ever writes inside its own directory and reloads via `systemctl --user reload`. There is no sudo and no sudoers rule in v1. A documented **one-time setup step** installs the `include` line and starts the user NGINX unit — analogous to `enable-linger`, a host prerequisite, not an ongoing privileged operation.
 
-Required lifecycle operations (mapped to `systemctl`):
+Required lifecycle operations (mapped to `systemctl --user`): start/stop/restart one service, check status for one service, start/stop/restart all services, and tail service logs (`journalctl --user -u <service>`).
 
-- Start one service.
-- Stop one service.
-- Restart one service.
-- Check status for one service.
-- Start all services.
-- Stop all services.
-- Restart all services.
-- Tail service logs (`journalctl -u <service>`).
-- Signal or reload advanced services where supported.
+### 2. Routing
 
-### 2. Routing and ingress
+Outpost generates NGINX config for host-based and path-based routing to services.
 
-The platform must generate NGINX config that supports host-based and path-based routing across multiple sub-apps and microservices. It must support multiple backends per logical service so NGINX can balance requests across replicas using native upstream capabilities such as round robin, weighted balancing, least connections, and affinity-related patterns where appropriate.
-
-Required routing features:
-
-- Virtual hosts.
-- Path prefix routing.
-- Reverse proxying to service listeners.
-- Upstream grouping for replicas.
-- Graceful reload after validated config changes.
-
-#### Route shape
-
-`routes` is a **list of virtual-host objects**. Each entry has a `host` (a literal or wildcard like `*.example.com`); omit `host` to mark the default/catch-all vhost. Within a vhost, `paths` is a map of **path prefix to target spec**. Routing match rules in v1:
-
-- Path keys are **prefix** matches, **longest-prefix-wins** (so `/api` beats `/`).
-- Exact-path and regex matching are deferred to v2.
-- Duplicate `host` entries across the list are a validation error.
-- Wildcards and the catch-all vhost are awkward as YAML map keys, so a list is used instead of a host-keyed map.
-
-Example:
+`routes` is a list of virtual-host objects. Each entry has a `host` (a literal or wildcard like `*.example.com`); omit `host` to mark the default/catch-all vhost. Within a vhost, `paths` is a map of **path prefix to target service** (`{ to: <service> }`). Path keys are prefix matches, longest-prefix-wins (so `/api` beats `/`). Exact-path and regex matching are deferred to v2. Duplicate `host` entries are a validation error.
 
 ```yaml
 routes:
@@ -237,124 +187,64 @@ routes:
       /: { to: web }
 ```
 
-#### Policies
-
-A path's target spec may carry an inline `policy:` block. In v1 policies are **inline-only and logical** — they express intent, never raw NGINX directives, so the platform can compile them to backend config without leaking backend nouns into the source model. Named/reusable middleware chains are deferred to v2.
-
-v1 policy set:
-
-- `rate_limit`: `{ rps, burst }`.
-- `request_headers` / `response_headers`: `{ add, set, remove }` (each a map).
-- `auth`: `{ basic: <htpasswd file path> }`.
-
-In v1, policies attach at the **path level only**; there is no vhost- or global-level policy block. Example:
-
-```yaml
-routes:
-  - host: app.example.com
-    paths:
-      /api:
-        to: api
-        policy:
-          rate_limit: { rps: 100, burst: 50 }
-          request_headers:
-            add: { X-Forwarded-By: outpost }
-          auth:
-            basic: ./secrets/users.htpasswd
-      /:
-        to: web
-```
+v1 has **no in-band traffic policy**: no rate limiting, header rewriting, or auth middleware, and no reusable middleware chains. Policies/middleware are a later addition.
 
 ### 3. Exposure
 
-The platform must support secure public exposure through a file-configured tunnel provider, with Cloudflare Tunnel as the default backend in v1. The exposure model must support multiple services and hostnames behind a single tunnel configuration via ordered ingress rules.
+Public exposure is **Cloudflare Tunnel only** in v1; there is no provider abstraction. All public exposure routes through NGINX: the traffic path is `cloudflared -> nginx (127.0.0.1:41999) -> service`. The tunnel terminates TLS and owns the public certificate; NGINX listens on plain HTTP locally because the encrypted boundary is the tunnel. The platform does not issue, store, or renew certificates. A service with no route is still supervised by systemd and reachable on its localhost listener, but that is an unexposed service, not public exposure.
 
-In v1 all public exposure routes through NGINX: the traffic path is `tunnel -> nginx -> service`. The tunnel terminates at NGINX, which provides the single TLS termination point, security boundary, and policy layer. Direct tunnel-to-service exposure is deferred to a later version. A service with no route is still supervised by systemd and reachable on its localhost listener, but that is an unexposed service, not public exposure.
+Outpost renders a cloudflared config from `exposure.cloudflare` (`credentials_file` plus the `hosts` to expose) mapping each public hostname to the NGINX listener. Direct tunnel-to-service exposure and additional providers (e.g. ngrok) are deferred.
 
-TLS is tunnel-managed only in v1. The tunnel provider owns the public certificate; NGINX listens on plain HTTP locally — on a high local port under the user-NGINX privilege bridge (see "Service management") — because the encrypted boundary is the tunnel. The platform does not issue, store, or renew certificates, and does not manage host trust stores. Local HTTPS for LAN-direct access (e.g. mkcert/self-signed) is deferred to v2 and is coupled to any future LAN/direct mode. As a consequence, upstream TLS/mTLS from NGINX to services is also out of scope for v1 — services listen on plain HTTP or raw TCP on localhost.
+### 4. Security posture
 
-Requirements:
+With no policy engine in v1, security comes from the architecture: services bind loopback, NGINX is the single local entry point, and only the hosts listed in `exposure.cloudflare.hosts` are public via the tunnel (optionally fronted by the operator's own Cloudflare Access, which is outside Outpost). Upstream TLS/mTLS from NGINX to services is out of scope — services listen on plain HTTP or raw TCP on localhost.
 
-- Expose one or more services under one domain set or tunnel.
-- Support hostname-based mapping to internal NGINX endpoints.
-- Keep the public exposure abstraction generic enough to add ngrok later.
+### 5. Health
 
-### 4. Security controls
+Health in v1 is a **simple startup check only**, used to gate an apply — not ongoing traffic shaping.
 
-The platform must allow NGINX to function as the outer security layer for sub-apps and APIs through centralized gateway policies. This includes support for headers, rate limiting, upstream TLS/mTLS where needed, access restrictions, and optional integration with a public auth layer such as Cloudflare Access.
+- If a service defines `health` (`http: { path }` or a TCP check), `apply` waits for it to pass within a configured timeout before considering the apply successful and the route active.
+- If no `health` is defined, `apply` succeeds once systemd reports the unit active.
+- If the check never passes, the apply **fails** and the previous working state is restored (see "Atomicity").
 
-This product will not provide a full enterprise API management suite, but it should allow users to secure small internal services behind one controlled entry point.
-
-### 5. Health and supervision
-
-systemd provides process supervision and restart-on-exit with backoff and rate-limiting (`Restart=`, `StartLimitBurst`/`StartLimitIntervalSec`). The platform controller adds higher-level health semantics beyond simple process existence, because systemd alone does not express readiness/liveness probes or tie them to routing.
-
-Requirements:
-
-- Track process state from systemd (`systemctl`/unit state).
-- Optionally check HTTP/TCP health endpoints.
-- Delay route activation until a service is healthy.
-- Surface unhealthy states in CLI and MCP status outputs.
-
-Health behavior in v1 is scoped to **status reporting and apply-time readiness gating**, not ongoing traffic shaping:
-
-- Health is always reported in `status` and MCP outputs.
-- During `outpost apply`, a route to a service is only enabled if the service passes its startup/readiness check within a configured timeout. If it never becomes healthy, NGINX is still reloaded but the route is left in a disabled/maintenance state and the apply is reported as degraded, rather than pointing at a dead backend.
-- systemd continues to restart crashed processes (throttled by rate limits), so the "process died" case is handled by supervision.
-- Continuously pulling an unhealthy-but-alive service out of the live NGINX upstream (passive health checks or active probe-driven reloads) is deferred to v2, since it implies a background component and reload churn that a v1 control plane should not own.
+There are no passive/active health probes, no pulling of unhealthy services out of the live upstream, and no degraded/maintenance states in v1 — systemd handles crash-restart; apply handles the startup gate.
 
 ### 6. Logging and status
 
-The platform must provide a unified operator-facing status view that merges service state, route state, and exposure state. It should surface per-service logs from journald (`journalctl -u <service>`) and optionally tail NGINX logs, so operators and agents can inspect problems without understanding low-level file layout.
+Outpost provides a unified status view (service state, route state, exposure state) and surfaces per-service logs from journald (`journalctl --user -u <service>`), so operators and agents can inspect problems without understanding low-level file layout.
 
-Required commands:
-
-- `status`
-- `logs`
-- `routes`
-- `exposure`
-- `ps` or equivalent service list/status view.
+Required commands: `status`, `logs`, `routes`, `exposure`, `ps`.
 
 ### 7. Environment and secrets
 
-Services receive environment variables in Docker Compose style, supporting both inline values and file references:
+Services receive environment variables in Docker Compose style:
 
-- `services.<name>.environment`: an inline map (`KEY: value`) or list (`KEY=value`), with `${VAR}` interpolation resolved at generate time from the host environment plus the platform-injected variables (`PORT`, `ADDRESS`, `DATA_DIR`, `OUTPOST_REPLICA_INDEX`, `OUTPOST_REPLICAS`); platform-injected vars take precedence. Suited to non-secret configuration.
-- `services.<name>.env_file`: one or more paths to env files loaded verbatim. Suited to secrets and larger env sets; the operator owns these files (typically gitignored or decrypted out of band via `age`/`sops`).
+- `services.<name>.environment`: an inline map (`KEY: value`) or list (`KEY=value`), with `${VAR}` interpolation resolved at generate time from the host environment plus platform-injected variables (`PORT`, `ADDRESS`, `DATA_DIR`); platform-injected vars take precedence. Suited to non-secret configuration.
+- `services.<name>.env_file`: one or more paths to env files loaded verbatim. Suited to secrets; the operator owns these files (typically gitignored or decrypted out of band via `age`/`sops`).
 - Precedence matches Compose: inline `environment` overrides `env_file`; later `env_file` entries override earlier ones.
 
-v1 ships no built-in secret store — no encryption at rest, generation, or rotation. The platform reads env sources and passes them through to the service via the generated unit's `Environment=` / `EnvironmentFile=` without interpreting values. Safety constraints: `status` and `logs` never echo environment contents, and `outpost generate` must reference the env source (e.g. via `EnvironmentFile=`) in rendered unit files rather than copying secret values into broadly-readable generated files where avoidable.
+v1 ships no built-in secret store. The platform reads env sources and passes them through via the generated unit's `Environment=` / `EnvironmentFile=` without interpreting values. Safety constraints: `status` and `logs` never echo environment contents, and `outpost generate` references the env source (e.g. via `EnvironmentFile=`) rather than copying secret values into broadly-readable generated files where avoidable.
 
 ### 8. Source and updates
 
-**Every service is git-sourced.** A `source:` block is **required** on every service and accepts only git (typically a GitHub repository); there is no operator-provided / no-source service class in v1. Outpost owns every service's files and lifecycle end-to-end — clone, build, inject environment, update, rollback — because a service is meaningless to the platform without a repository to deploy from. **Outpost is a deployment platform, not a local-dev runner**: every code change must be committed and pushed before it reaches the running service, so rapid inner-loop iteration is intentionally out of scope. There is no local-path or hot-reload mode in v1 (a possible v2 candidate).
+**Every service is git-sourced** (typically a GitHub repository). A `source:` block is required on every service and accepts only git; there is no operator-provided / no-source service class in v1. Outpost owns every service's files and lifecycle — clone, build, update. As above, Outpost is a deployment platform, not a local-dev runner: every code change must be committed and pushed before it reaches the running service.
 
 Fields:
 
 - `source.git`: the remote URL (HTTPS or SSH).
 - `source.ref`: the branch or tag this service tracks — the **update target** (what `outpost update` advances to). Omit to track the remote default branch.
-- `source.sha`: the exact commit currently deployed — the **deploy target** (what `outpost apply` checks out). Outpost writes this field on every deploy; it may be empty before first deploy, in which case `apply` resolves `ref`→sha and populates it. Editing `ref` alone does **not** redeploy (ref is not the deploy target); version changes go through `update`/`rollback`, which own `sha`.
+- `source.sha`: the exact commit currently deployed — the **deploy target** (what `outpost apply` checks out). Outpost writes this field on every deploy; it may be empty before first deploy, in which case `apply` resolves `ref`→sha and populates it. Editing `ref` alone does **not** redeploy; version changes go through `update`, which owns `sha`.
 - `source.path`: a subdirectory within the repo, for monorepos (default: repo root). The generated unit's `WorkingDirectory=` is set to `<clone>/<source.path>`, and `command`/`build` run there.
-- `build`: an optional command run in the clone after every pull, before start (e.g. `make build`, `pip install -r requirements.txt`). Outpost does **not** detect languages or manage toolchains — the host provides them. No `build:` means clone-and-run (scripts or committed/prebuilt artifacts).
+- `build`: an optional command run in the clone after checkout, before start (e.g. `make build`, `pip install -r requirements.txt`). Outpost does **not** detect languages or manage toolchains — the host provides them. No `build:` means clone-and-run (scripts or committed/prebuilt artifacts).
 
-The config is the source of truth for what is deployed: reading a service's `source.git`/`ref`/`sha` tells you the repo, the tracked ref, and the exact running commit. Because `sha` lives in the config, `apply` is a pure, local, deterministic reconcile to that exact commit and never pulls on its own.
+The config is the source of truth for what is deployed: reading a service's `source.git`/`ref`/`sha` gives the repo, the tracked ref, and the exact running commit. Because `sha` lives in the config, `apply` is a pure, local reconcile to that exact commit and never pulls on its own.
 
-The managed clone lives under `.outpost/repos/<service>` (root configurable); outpost owns it and local edits are overwritten on update, by design. Because the clone is ephemeral, the platform guarantees a separate persistent directory per service and injects its path as `DATA_DIR` (default `.outpost/data/<service>`, also available for `${...}` interpolation). All mutable state — databases, uploads, caches — must live under `$DATA_DIR`, which is never touched by updates. `DATA_DIR` is **shared across all replicas of a service** (one path, by design), so it suits shared assets, caches, or a datastore the replicas coordinate over — but a single-writer file database (e.g. SQLite) in `$DATA_DIR` is only safe with `replicas: 1`; stateful multi-replica services must use a multi-writer or external datastore.
+The managed clone lives under `.outpost/repos/<service>` (root configurable); Outpost owns it and local edits are overwritten on update, by design. Because the clone is ephemeral, the platform injects a separate persistent directory per service as `DATA_DIR` (default `.outpost/data/<service>`, available for `${...}` interpolation). All mutable state — databases, uploads, caches — must live under `$DATA_DIR`, which is never touched by updates.
 
-`outpost apply` reconciles to the deployed `sha` (see "Internal pipeline", step 3): clone if missing, check out the sha, build if the clone changed. It never advances commits within a ref — pulling the latest is `update`'s job. This keeps `apply` a config-reconciliation operation that is a no-op when nothing has changed.
+- **`outpost apply`** reconciles to the pinned `sha`: clone if missing, check out the sha, build if the clone changed, then render and activate configs. It never advances commits within a ref.
+- **`outpost update <service> [--ref <ref>]`** fetches, resolves the current `ref` (or `--ref`, which also writes `ref`) to a new sha, writes that sha into `source.sha`, then runs `apply`. On fetch/build/health failure the running service is left untouched and the update is reported failed.
 
-`outpost update <service> [--ref <ref>]` fetches, resolves the current `ref` (or `--ref`, which also writes `ref`) to a new sha, writes that sha into `source.sha`, runs `build:` if present, then deploys the new code with a strategy that depends on the service shape:
-
-- **Allocated replicas** (`listen` omitted, `replicas ≥ 1`): zero-downtime rolling swap — the new instance is brought up on a fresh allocated port, health-checked, the NGINX upstream is flipped to it, and the old instance is drained and stopped. The old instance keeps serving throughout.
-- **Declared-port singletons** (fixed `listen`, e.g. `127.0.0.1:8080`): **brief-downtime restart** in v1 — old is stopped, new is started. There is no second port to run old and new concurrently, so true zero-downtime isn't possible for this shape without a transient second port.
-
-Blue-green for singletons (allocate a transient second port, health-check the new instance, then swap NGINX and tear down the old) is a real option and a v2 candidate; v1 ships rolling swap for replicas and brief-downtime restart for singletons.
-
-On fetch, build, or health failure the running service is left untouched and the update is reported failed; there is no partial state. `outpost rollback <service>` writes the previous sha (read from the rollback history in the state sidecar) into `source.sha` and rebuilds, using the same shape-dependent strategy.
-
-Deploy and version changes go through commands (`update`/`rollback`, which own `source.sha`); structural changes (command, args, env, routes, listen) are config edits followed by `apply`. Because the config is also written by these commands, the operator interacts primarily through the CLI/MCP rather than hand-editing YAML; if the config is version-controlled, each deploy/rollback appears as a commit (a free audit log — commit afterward).
-
-Private repositories use the operator's existing git/SSH credentials — outpost runs `git` as the operator user; there is no credential manager in v1. Auto-update (polling or webhooks) is deferred to v2: v1 updates are explicit, keeping the control plane synchronous with no background daemon.
+Because the config is also written by `update`, the operator interacts primarily through the CLI/MCP rather than hand-editing YAML; if the config is version-controlled, each update appears as a commit (a free audit log — commit afterward). Private repositories use the operator's existing git/SSH credentials — Outpost runs `git` as the operator user; there is no credential manager in v1. Auto-update (polling or webhooks) is deferred to v2.
 
 ## CLI requirements
 
@@ -371,39 +261,28 @@ The CLI is the primary operator interface and the canonical engine used by highe
 - `outpost stop <service>`
 - `outpost restart <service>`
 - `outpost update <service> [--ref <ref>]`
-- `outpost rollback <service>`
 - `outpost up`
 - `outpost down`
 - `outpost ps`
 - `outpost routes`
 - `outpost exposure`
 
-These commands should map internally to render/apply logic plus `systemctl` operations (`--user` by default), `git` for source updates, and `journalctl` for logs, alongside tunnel-provider state inspection.
+These map internally to render/apply logic plus `systemctl --user`, `git` for source updates, and `journalctl --user` for logs.
 
 ### Apply semantics
 
-`outpost apply` must:
-
-1. Parse and validate the platform spec.
-2. Generate all target configs to a staging area.
-3. Test the NGINX config before activation.
-4. Write configs atomically (swap last-known-good for staged set).
-5. `systemctl daemon-reload`, then start or reload affected services.
-6. Gracefully reload NGINX.
-7. Verify health and report final state.
-
-Failure handling is defined in "Idempotency and state": on an invalid config test (`nginx -t`) or activation failure, restore the last-known-good backup set and reload so nothing live changes (a config revert). A service that activates but fails its health/readiness check within the timeout does **not** trigger a revert — its route is left disabled (maintenance response), NGINX is reloaded so all other routes take effect, and the apply is reported as degraded. A self-healed route is re-enabled on a subsequent `apply` (auto-healing reloads are deferred to v2).
+`outpost apply` must: parse and validate the spec; materialize sources to the pinned sha; generate configs to a staging area; test the NGINX config; write configs atomically (swap last-known-good for staged set); `daemon-reload`, start/restart affected services, and reload NGINX; run the startup health check; and report final state. An apply either fully succeeds or reverts to the last-known-good backup (config-invalid or startup-health failure), leaving the running system unchanged.
 
 ### Stack lifecycle
 
-`up` and `down` are the stack-level lifecycle pair, distinct from `apply` (config reconciliation) and `start`/`stop` (per-service):
+`up` and `down` are the stack-level lifecycle pair:
 
-- **`outpost up`** = `apply` + start all services. It is the one-shot "make everything run" command: reconcile the config (clone/build missing services, generate, health-gate) then start every service. It is the first command run on a fresh host. Idempotent — `up` on an already-running stack is effectively a no-op apart from the apply digest check.
-- **`outpost down`** = stop all services only. It stops every service process but leaves everything else in place: the spec, generated units, NGINX server blocks, clones, and data, so a subsequent `up` brings the stack straight back. It does **not** delete artifacts or data; full teardown/uninstall is out of scope for v1.
+- **`outpost up`** = `apply` + start all services. The one-shot "make everything run" command, and the first command run on a fresh host. Idempotent.
+- **`outpost down`** = stop all services only. Leaves the spec, generated units, NGINX blocks, clones, and data in place, so a subsequent `up` brings the stack straight back. Full teardown/uninstall is out of scope for v1.
 
 ## MCP and coding-agent integration
 
-The product must expose a structured, minimal MCP server so coding agents can inspect and operate the platform through typed tools instead of raw shell access. MCP is appropriate because it standardizes tool discovery and invocation for hosts and agent clients.
+Outpost exposes a minimal MCP server so coding agents can inspect and operate the platform through typed tools instead of raw shell access. The CLI remains the core implementation; the MCP server is an adapter over the same internal library.
 
 ### MCP v1 tools
 
@@ -413,50 +292,24 @@ The product must expose a structured, minimal MCP server so coding agents can in
 - `stop_service`
 - `restart_service`
 - `update_service`
-- `rollback_service`
 - `apply_config`
 - `validate_config`
 - `show_routes`
 - `show_exposure`
 - `tail_logs`
 
-The CLI should remain the core implementation, with the MCP server acting as an adapter over the same internal library.
-
 ## Runtime targets
 
-### Primary target
-
-**systemd Linux** — Raspberry Pi, VPSes, homelab boxes, and developer desktops. NGINX, systemd, and tunnel agents are all native and first-class here, and systemd's restart policies, journald logging, and template units map cleanly onto the platform's service model. User units (no root, with `enable-linger`) are the default; system units are supported.
-
-### Explicitly deferred
-
-- **Android/Termux**: out of scope for v1. Termux has no systemd; the previous runit-based path relied on termux-services, which is no longer in the architecture.
-- **macOS**: out of scope for v1. macOS uses launchd, a separate supervisor; supporting it would mean a second backend. A launchd backend is conceivable later but is not promised.
-- **Windows**: out of scope for v1.
-
-## Adoption strategy for exposure backend
-
-Cloudflare Tunnel should be the default v1 exposure backend because it is widely adopted in self-hosting workflows, supports exposing multiple services from a single configuration, and removes the need for direct port forwarding. The platform should keep the exposure abstraction generic enough to support ngrok later as a second provider for developer-centric or temporary workflows.
-
-The platform should not make tunnel-provider syntax the source model. Instead, the source model should describe logical exposure intent and compile it into provider-native configuration.
+**systemd Linux** is the only v1 target — Raspberry Pi, VPSes, homelab boxes, and developer desktops, using systemd user units (no root, with `enable-linger`). Android/Termux (no systemd), macOS (launchd), and Windows are out of scope for v1.
 
 ## Open questions
 
-(None remaining for v1 — all original questions have been resolved into the sections above. Deferred items are noted inline as v2 candidates.)
+(None remaining for v1 — deferred items are noted inline as later additions.)
 
 ## Success criteria
 
-The product will be successful in v1 if a technical user can take one declarative config file and, on a systemd Linux host (Raspberry Pi, VPS, or desktop), reliably:
-
-- start a small multi-service stack,
-- route requests through NGINX,
-- load balance replicas where configured,
-- expose selected endpoints through a tunnel,
-- deploy services from git, and update or roll them back,
-- inspect service health and logs,
-- operate everything through a CLI and MCP surface,
-- and do so without manually authoring raw NGINX config, systemd units, or tunnel configs.
+v1 is successful if a technical user can take one declarative config file and, on a single systemd Linux host, reliably: clone git services, build them, run each behind one port, route requests to them through NGINX, expose selected hosts through Cloudflare Tunnel, update a service by advancing its git ref, inspect status and logs, and do all of it through a CLI and MCP surface — without hand-authoring systemd units, NGINX config, or cloudflared YAML.
 
 ## v1 summary
 
-The differentiator is not the infrastructure primitives — NGINX, systemd, and a tunnel provider are all proven and unglamorous. It is the clean logical abstraction over them, the safe apply-and-rollback workflow, and a consistent operational model that works the same across any systemd Linux box, drivable by both an operator and a coding agent.
+v1 ships exactly one loop: a YAML file defines git-sourced services and host/path routes, and Outpost renders that into running systemd user units behind a user NGINX, exposed through Cloudflare Tunnel. Every feature in v1 must directly help a technical user deploy a small git-based service stack on one Linux machine with as little ceremony as possible. Replicas, policies, multi-provider exposure, rollback, and advanced health-driven routing are all reasonable later additions — but not in v1.
