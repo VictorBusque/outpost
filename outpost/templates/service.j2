@@ -1,0 +1,17 @@
+[Unit]
+Description={{ spec.description }}
+
+[Service]
+Type=simple
+WorkingDirectory={{ spec.working_directory }}
+{% for f in spec.environment_files %}
+EnvironmentFile={{ f }}
+{% endfor %}{% for e in spec.environment %}
+Environment={{ e }}
+{% endfor %}
+ExecStart={{ spec.exec_start }}
+Restart={{ spec.restart }}
+RestartSec={{ spec.restart_sec }}
+
+[Install]
+WantedBy=default.target
