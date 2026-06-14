@@ -1,5 +1,12 @@
 # Outpost 🏕️
 
+[![CI](https://github.com/VictorBusque/outpost/actions/workflows/ci.yml/badge.svg)](https://github.com/VictorBusque/outpost/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Checked with ty](https://img.shields.io/badge/checked%20with-ty-000?logo=python)](https://github.com/astral-sh/ty)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
+
 **A deterministic, single-node Linux micro-platform control plane.**
 
 Outpost is a lightweight CLI and MCP (Model Context Protocol) server that turns a declarative YAML file into running `systemd` user services exposed through a managed NGINX reverse proxy and Cloudflare Tunnel.
