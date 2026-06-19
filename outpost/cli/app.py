@@ -12,6 +12,7 @@ JSON shapes without invoking the real pipeline.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -396,3 +397,16 @@ def _run_syscmd(label: str, fn: Callable[[], None]) -> None:
 
 def _print_service_status(s: dict) -> None:
     typer.echo(f"{s['name']:20s} {s['unit']:12s} listen={s['listen']}")
+
+
+# ===========================================================================
+# MCP server (Phase 8)
+# ===========================================================================
+
+
+@app.command(hidden=True)
+def mcp_server() -> None:
+    """Run the MCP stdio server (used by coding-agent harnesses)."""
+    from outpost.mcp.server import run_server as _run_mcp
+
+    asyncio.run(_run_mcp())
