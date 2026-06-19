@@ -40,7 +40,7 @@ from sow.engine.health import HealthCheckError, wait_for
 from sow.engine.ports import PortAllocationError, allocate_all
 from sow.engine.render import RenderError
 from sow.engine.stage import stage
-from sow.models import sowConfig, Service
+from sow.models import Service, sowConfig
 from sow.paths import GENERATED_SUBDIRS, RuntimePaths
 from sow.state.store import StateStore
 from sow.sysdeps import git, nginx, systemctl
@@ -265,17 +265,13 @@ def _run_nginx_test(runner: Runner, servers_conf: Path, *, prefix: Path) -> None
     """
     conf = prefix / "nginx.conf"
     conf.write_text(
-        "events {}\nhttp {\n"
-        f"    include {servers_conf.resolve()};\n"
-        "}\n",
+        f"events {{}}\nhttp {{\n    include {servers_conf.resolve()};\n}}\n",
         encoding="utf-8",
     )
     nginx.test(runner, conf, prefix=prefix)
 
 
-def _changed_services(
-    config: sowConfig, tree_from_staged, paths: RuntimePaths
-) -> set[str]:
+def _changed_services(config: sowConfig, tree_from_staged, paths: RuntimePaths) -> set[str]:
     """Services whose staged unit differs from the live one (or has no live one).
 
     Drives restart-vs-start: a changed unit is restarted, an unchanged one is

@@ -22,9 +22,7 @@ from sow.models import sowConfig
 from tests.unit.conftest import minimal_config, minimal_service
 
 
-def _config_with_routes(
-    services: dict, routes: list, exposure: dict | None = None
-) -> sowConfig:
+def _config_with_routes(services: dict, routes: list, exposure: dict | None = None) -> sowConfig:
     cfg = minimal_config(services)
     cfg["routes"] = routes
     if exposure is not None:
@@ -121,9 +119,7 @@ def test_unix_socket_upstream() -> None:
         {"api": minimal_service(listen="/run/sow/api.sock")},
         [{"host": "app.example.com", "paths": {"/": {"to": "api"}}}],
     )
-    assert (
-        build_nginx_specs(cfg, {})[0].locations[0].upstream == "http://unix:/run/sow/api.sock"
-    )
+    assert build_nginx_specs(cfg, {})[0].locations[0].upstream == "http://unix:/run/sow/api.sock"
 
 
 def test_upstream_has_no_trailing_slash_to_preserve_path() -> None:

@@ -35,9 +35,7 @@ def _parse_port_range(value: str) -> tuple[int, int]:
     return int(lo_str), int(hi_str)
 
 
-def allocate_all(
-    config: sowConfig, preferred: Mapping[str, int] | None = None
-) -> dict[str, int]:
+def allocate_all(config: sowConfig, preferred: Mapping[str, int] | None = None) -> dict[str, int]:
     """Assign a TCP port to every service without a declared ``listen``.
 
     Returns ``{service_name: port}`` only for allocated services — declared

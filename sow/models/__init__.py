@@ -6,11 +6,11 @@ from sow.models.config import (
     Exposure,
     Health,
     HttpHealth,
-    sowConfig,
     PathTarget,
     Route,
     Service,
     Source,
+    sowConfig,
 )
 
 __all__ = [
@@ -19,9 +19,9 @@ __all__ = [
     "Exposure",
     "Health",
     "HttpHealth",
-    "sowConfig",
     "PathTarget",
     "Route",
     "Service",
     "Source",
+    "sowConfig",
 ]

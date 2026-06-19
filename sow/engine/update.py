@@ -45,7 +45,7 @@ def update(
     ``sha`` is already the latest), or failure with a message.
     """
     paths = paths or RuntimePaths()
-    cfg_path = (Path(config_path) if config_path is not None else config_mod.DEFAULT_CONFIG_PATH)
+    cfg_path = Path(config_path) if config_path is not None else config_mod.DEFAULT_CONFIG_PATH
     config = config_mod.load(cfg_path)
 
     svc = config.services.get(service_name)
@@ -74,9 +74,7 @@ def update(
     sha_changed = new_sha != current_sha
 
     if not sha_changed and not ref_changed:
-        return ApplyResult(
-            ok=True, no_op=True, message=f"{service_name} already at {new_sha[:12]}"
-        )
+        return ApplyResult(ok=True, no_op=True, message=f"{service_name} already at {new_sha[:12]}")
 
     # Write ref (if overridden) and sha back to the config file.
     config_mod.write_source_fields(
@@ -100,9 +98,7 @@ def update(
     )
 
 
-def _updated_config(
-    config: sowConfig, name: str, *, sha: str, ref: str | None
-) -> sowConfig:
+def _updated_config(config: sowConfig, name: str, *, sha: str, ref: str | None) -> sowConfig:
     """Return a new config with ``name``'s ``source.{sha[, ref]}`` replaced.
 
     The existing config is unchanged (frozen models, immutable).

@@ -26,10 +26,10 @@ from sow.paths import RuntimePaths
 from sow.state.store import State, StateStore
 from sow.sysdeps import systemctl
 from sow.sysdeps.journalctl import tail as _journalctl_tail
-from sow.sysdeps.run import RealRunner, SubprocessError
+from sow.sysdeps.run import RealRunner, Runner, SubprocessError
 
 # Production runner (mocked in tests).
-_runner = RealRunner()
+_runner: Runner = RealRunner()
 
 # Injectable config path (set by tests to avoid touching ~/.config/sow/).
 _config_path: str | Path | None = None
@@ -104,9 +104,7 @@ async def run_server() -> None:
         ),
         Tool(
             name="apply_config",
-            description=(
-                "Materialize sources, generate configs, swap, health-gate, commit."
-            ),
+            description=("Materialize sources, generate configs, swap, health-gate, commit."),
             inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
@@ -147,9 +145,7 @@ async def run_server() -> None:
         return _TOOLS
 
     @server.call_tool()
-    async def handle_call_tool(
-        name: str, arguments: dict | None
-    ) -> CallToolResult:
+    async def handle_call_tool(name: str, arguments: dict | None) -> CallToolResult:
         args = arguments or {}
         try:
             match name:
@@ -203,13 +199,15 @@ async def _list_services() -> CallToolResult:
     for name in config.services:
         state = await _unit_state(name)
         svc = config.services[name]
-        services.append({
-            "name": name,
-            "unit": state,
-            "listen": svc.listen or None,
-            "sha": svc.source.sha or None,
-            "ref": svc.source.ref,
-        })
+        services.append(
+            {
+                "name": name,
+                "unit": state,
+                "listen": svc.listen or None,
+                "sha": svc.source.sha or None,
+                "ref": svc.source.ref,
+            }
+        )
     return _ok(services)
 
 
@@ -219,14 +217,16 @@ async def _get_service_status(name: str) -> CallToolResult:
     if svc is None:
         return _error(f"service {name!r} not found")
     state = await _unit_state(name)
-    return _ok({
-        "name": name,
-        "unit": state,
-        "listen": svc.listen or None,
-        "sha": svc.source.sha or None,
-        "ref": svc.source.ref,
-        "health": {"defined": svc.health is not None},
-    })
+    return _ok(
+        {
+            "name": name,
+            "unit": state,
+            "listen": svc.listen or None,
+            "sha": svc.source.sha or None,
+            "ref": svc.source.ref,
+            "health": {"defined": svc.health is not None},
+        }
+    )
 
 
 async def _run_syscmd(action: str, name: str) -> CallToolResult:
@@ -260,12 +260,14 @@ async def _update_service(name: str, ref: str | None = None) -> CallToolResult:
         )
     )
     if result.ok:
-        return _ok({
-            "service": name,
-            "old_sha": old_sha,
-            "new_sha": _load().services[name].source.sha,
-            "applied": True,
-        })
+        return _ok(
+            {
+                "service": name,
+                "old_sha": old_sha,
+                "new_sha": _load().services[name].source.sha,
+                "applied": True,
+            }
+        )
     return _ok({"service": name, "applied": False, "error": result.message})
 
 
@@ -274,12 +276,14 @@ async def _apply_config() -> CallToolResult:
         lambda: _apply(runner=_runner, store=StateStore(RuntimePaths().state))
     )
     if result.ok:
-        return _ok({
-            "applied": True,
-            "digest": _load_state().applied_digest,
-            "reverted": False,
-            "services": list(_load().services),
-        })
+        return _ok(
+            {
+                "applied": True,
+                "digest": _load_state().applied_digest,
+                "reverted": False,
+                "services": list(_load().services),
+            }
+        )
     return _ok({"applied": False, "reverted": not result.ok, "error": result.message})
 
 
@@ -308,10 +312,12 @@ async def _show_exposure() -> CallToolResult:
     config = _load()
     if config.exposure is None:
         return _ok({"provider": None, "hosts": []})
-    return _ok({
-        "provider": "cloudflare",
-        "hosts": list(config.exposure.cloudflare.hosts),
-    })
+    return _ok(
+        {
+            "provider": "cloudflare",
+            "hosts": list(config.exposure.cloudflare.hosts),
+        }
+    )
 
 
 async def _tail_logs(name: str, lines: int = 200) -> CallToolResult:
@@ -342,9 +348,7 @@ def _load_state() -> State:
 
 async def _unit_state(name: str) -> str:
     try:
-        return await asyncio.to_thread(
-            systemctl.unit_state, _runner, f"{name}.service"
-        )
+        return await asyncio.to_thread(systemctl.unit_state, _runner, f"{name}.service")
     except (SubprocessError, OSError):
         return "unknown"
 

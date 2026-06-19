@@ -107,9 +107,9 @@ def _http_unix(path: str, socket_path: str) -> bool:
     try:
         sock.settimeout(_ATTEMPT_TIMEOUT)
         sock.connect(socket_path)
-        request = (
-            f"GET {path} HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n"
-        ).encode("latin-1")
+        request = (f"GET {path} HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n").encode(
+            "latin-1"
+        )
         sock.sendall(request)
         head = b""
         while b"\r\n" not in head and len(head) < 1024:

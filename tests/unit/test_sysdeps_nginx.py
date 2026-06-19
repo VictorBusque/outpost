@@ -59,9 +59,7 @@ def test_test_propagates_stderr_on_syntax_error():
 
 def test_reload_uses_systemctl_user_reload_sow_nginx():
     fake = FakeRunner()
-    fake.script(
-        ["systemctl", "--user", "reload", "sow-nginx"], returns=CompletedProcess(0, "", "")
-    )
+    fake.script(["systemctl", "--user", "reload", "sow-nginx"], returns=CompletedProcess(0, "", ""))
     nginx.reload(fake)
     assert fake.argvs == [["systemctl", "--user", "reload", "sow-nginx"]]
 

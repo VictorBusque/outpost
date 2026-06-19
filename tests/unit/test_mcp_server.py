@@ -19,23 +19,21 @@ from sow.sysdeps.run import CompletedProcess
 from tests.mocks.runner import FakeRunner
 
 # 11 tools from ``cli-reference.md``.
-_REQUIRED_TOOLS: frozenset[str] = frozenset({
-    "list_services",
-    "get_service_status",
-    "start_service",
-    "stop_service",
-    "restart_service",
-    "update_service",
-    "apply_config",
-    "validate_config",
-    "show_routes",
-    "show_exposure",
-    "tail_logs",
-})
-
-
-def _install_tool_defs() -> set:
-    return _REQUIRED_TOOLS
+_REQUIRED_TOOLS: frozenset[str] = frozenset(
+    {
+        "list_services",
+        "get_service_status",
+        "start_service",
+        "stop_service",
+        "restart_service",
+        "update_service",
+        "apply_config",
+        "validate_config",
+        "show_routes",
+        "show_exposure",
+        "tail_logs",
+    }
+)
 
 
 def test_all_required_tools_are_defined() -> None:
@@ -48,20 +46,28 @@ def test_all_required_tools_are_defined() -> None:
 def test_validate_config_returns_valid(tmp_path: Path) -> None:
     cfg = tmp_path / "sow.yaml"
     cfg.write_text(
-        yaml.safe_dump({
-            "version": 1,
-            "services": {
-                "api": {"source": {"git": "https://x.git", "ref": "main", "sha": "abc1234"}, "command": "./run"}
-            },
-        })
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "services": {
+                    "api": {
+                        "source": {"git": "https://x.git", "ref": "main", "sha": "abc1234"},
+                        "command": "./run",
+                    }
+                },
+            }
+        )
     )
     mcp_srv._config_path = str(cfg)
     # We call validate_config via the dispatch. Since validate_config
     # does not use a runner, it works with just a config path.
     import asyncio
+
     resp = asyncio.run(mcp_srv._validate_config())
     assert not resp.isError
-    data = json.loads(resp.content[0].text)
+    text = resp.content[0]
+    assert isinstance(text, mcp_srv.TextContent)
+    data = json.loads(text.text)
     assert data["valid"] is True
 
 
@@ -70,8 +76,11 @@ def test_validate_config_invalid(tmp_path: Path) -> None:
     cfg.write_text("version: 2\nservices: {}\n")
     mcp_srv._config_path = str(cfg)
     import asyncio
+
     resp = asyncio.run(mcp_srv._validate_config())
-    data = json.loads(resp.content[0].text)
+    text = resp.content[0]
+    assert isinstance(text, mcp_srv.TextContent)
+    data = json.loads(text.text)
     assert data["valid"] is False
     assert len(data["errors"]) > 0
 
@@ -79,34 +88,59 @@ def test_validate_config_invalid(tmp_path: Path) -> None:
 def test_show_routes_empty(tmp_path: Path) -> None:
     cfg = tmp_path / "sow.yaml"
     cfg.write_text(
-        yaml.safe_dump({
-            "version": 1,
-            "services": {"web": {"source": {"git": "https://x.git", "sha": "abc1234", "ref": "main"}, "command": "./run"}},
-        })
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "services": {
+                    "web": {
+                        "source": {"git": "https://x.git", "sha": "abc1234", "ref": "main"},
+                        "command": "./run",
+                    }
+                },
+            }
+        )
     )
     mcp_srv._config_path = str(cfg)
     import asyncio
+
     resp = asyncio.run(mcp_srv._show_routes())
     assert not resp.isError
-    data = json.loads(resp.content[0].text)
+    text = resp.content[0]
+    assert isinstance(text, mcp_srv.TextContent)
+    data = json.loads(text.text)
     assert data == []
 
 
 def test_show_exposure_configured(tmp_path: Path) -> None:
     cfg = tmp_path / "sow.yaml"
     cfg.write_text(
-        yaml.safe_dump({
-            "version": 1,
-            "services": {"web": {"source": {"git": "https://x.git", "sha": "abc1234", "ref": "main"}, "command": "./run"}},
-            "routes": [{"host": "app.example.com", "paths": {"/": {"to": "web"}}}],
-            "exposure": {"cloudflare": {"credentials_file": "~/.cf/app.json", "hosts": ["app.example.com"]}},
-        })
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "services": {
+                    "web": {
+                        "source": {"git": "https://x.git", "sha": "abc1234", "ref": "main"},
+                        "command": "./run",
+                    }
+                },
+                "routes": [{"host": "app.example.com", "paths": {"/": {"to": "web"}}}],
+                "exposure": {
+                    "cloudflare": {
+                        "credentials_file": "~/.cf/app.json",
+                        "hosts": ["app.example.com"],
+                    }
+                },
+            }
+        )
     )
     mcp_srv._config_path = str(cfg)
     import asyncio
+
     resp = asyncio.run(mcp_srv._show_exposure())
     assert not resp.isError
-    data = json.loads(resp.content[0].text)
+    text = resp.content[0]
+    assert isinstance(text, mcp_srv.TextContent)
+    data = json.loads(text.text)
     assert data == {"provider": "cloudflare", "hosts": ["app.example.com"]}
 
 
@@ -114,10 +148,17 @@ def test_list_services_with_mocked_runner(tmp_path: Path) -> None:
     """list_services catches sysdep errors gracefully (unit == 'unknown')."""
     cfg = tmp_path / "sow.yaml"
     cfg.write_text(
-        yaml.safe_dump({
-            "version": 1,
-            "services": {"api": {"source": {"git": "https://x.git", "sha": "abc1234", "ref": "main"}, "command": "./run"}},
-        })
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "services": {
+                    "api": {
+                        "source": {"git": "https://x.git", "sha": "abc1234", "ref": "main"},
+                        "command": "./run",
+                    }
+                },
+            }
+        )
     )
     mcp_srv._config_path = str(cfg)
     fake = FakeRunner()
@@ -130,12 +171,15 @@ def test_list_services_with_mocked_runner(tmp_path: Path) -> None:
     old_runner = mcp_srv._runner
     mcp_srv._runner = fake
     import asyncio
+
     try:
         resp = asyncio.run(mcp_srv._list_services())
     finally:
         mcp_srv._runner = old_runner
     assert not resp.isError
-    data = json.loads(resp.content[0].text)
+    text = resp.content[0]
+    assert isinstance(text, mcp_srv.TextContent)
+    data = json.loads(text.text)
     assert len(data) == 1
     assert data[0]["name"] == "api"
     assert data[0]["unit"] == "active"
@@ -144,13 +188,23 @@ def test_list_services_with_mocked_runner(tmp_path: Path) -> None:
 def test_show_exposure_none(tmp_path: Path) -> None:
     cfg = tmp_path / "sow.yaml"
     cfg.write_text(
-        yaml.safe_dump({
-            "version": 1,
-            "services": {"web": {"source": {"git": "https://x.git", "sha": "abc1234", "ref": "main"}, "command": "./run"}},
-        })
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "services": {
+                    "web": {
+                        "source": {"git": "https://x.git", "sha": "abc1234", "ref": "main"},
+                        "command": "./run",
+                    }
+                },
+            }
+        )
     )
     mcp_srv._config_path = str(cfg)
     import asyncio
+
     resp = asyncio.run(mcp_srv._show_exposure())
-    data = json.loads(resp.content[0].text)
+    text = resp.content[0]
+    assert isinstance(text, mcp_srv.TextContent)
+    data = json.loads(text.text)
     assert data == {"provider": None, "hosts": []}

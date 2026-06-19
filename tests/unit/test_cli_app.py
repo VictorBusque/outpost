@@ -21,26 +21,29 @@ from sow.cli.app import app
 runner = CliRunner()
 
 # 14 commands from rfc.md §19.
-_REQUIRED_COMMANDS: frozenset[str] = frozenset({
-    "init",
-    "validate",
-    "apply",
-    "update",
-    "start",
-    "stop",
-    "restart",
-    "up",
-    "down",
-    "status",
-    "ps",
-    "routes",
-    "exposure",
-    "logs",
-})
+_REQUIRED_COMMANDS: frozenset[str] = frozenset(
+    {
+        "init",
+        "validate",
+        "apply",
+        "update",
+        "start",
+        "stop",
+        "restart",
+        "up",
+        "down",
+        "status",
+        "ps",
+        "routes",
+        "exposure",
+        "logs",
+    }
+)
 
 
 def test_all_required_commands_exist() -> None:
-    registered = {c.callback.__name__ for c in app.registered_commands}
+    # ponytail: c.callback is always set for our commands but ty can't narrow the union
+    registered = {getattr(c.callback, "__name__", "") for c in app.registered_commands}
     missing = _REQUIRED_COMMANDS - registered
     assert not missing, f"commands missing from CLI: {missing}"
 
@@ -53,7 +56,9 @@ def test_version(tmp_path: Path) -> None:
 
 def test_validate_valid(tmp_path: Path) -> None:
     cfg = tmp_path / "sow.yaml"
-    cfg.write_text("version: 1\nservices:\n  api:\n    source: {git: https://x.git, sha: abc1234}\n    command: ./run\n")
+    cfg.write_text(
+        "version: 1\nservices:\n  api:\n    source: {git: https://x.git, sha: abc1234}\n    command: ./run\n"
+    )
     result = runner.invoke(app, ["validate", "--config", str(cfg)])
     assert result.exit_code == 0
     assert "valid" in result.stdout
@@ -107,7 +112,9 @@ def test_ps_routes_exposure_help(tmp_path: Path) -> None:
 
 def test_status_json(tmp_path: Path) -> None:
     cfg = tmp_path / "sow.yaml"
-    cfg.write_text("version: 1\nservices:\n  api:\n    source: {git: https://x.git, sha: abc1234}\n    command: ./run\n")
+    cfg.write_text(
+        "version: 1\nservices:\n  api:\n    source: {git: https://x.git, sha: abc1234}\n    command: ./run\n"
+    )
     result = runner.invoke(app, ["status", "--json", "--config", str(cfg)])
     # status calls systemctl, which fails in the test runner — but we still get
     # JSON-structured output (with nulls/fails in the unit fields).
@@ -121,7 +128,9 @@ def test_status_json(tmp_path: Path) -> None:
 
 def test_exposure_json_none(tmp_path: Path) -> None:
     cfg = tmp_path / "sow.yaml"
-    cfg.write_text("version: 1\nservices:\n  api:\n    source: {git: https://x.git, sha: abc1234}\n    command: ./run\n")
+    cfg.write_text(
+        "version: 1\nservices:\n  api:\n    source: {git: https://x.git, sha: abc1234}\n    command: ./run\n"
+    )
     result = runner.invoke(app, ["exposure", "--json", "--config", str(cfg)])
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {"provider": None, "hosts": []}
@@ -130,16 +139,18 @@ def test_exposure_json_none(tmp_path: Path) -> None:
 def test_routes_json(tmp_path: Path) -> None:
     cfg = tmp_path / "sow.yaml"
     cfg.write_text(
-        yaml.safe_dump({
-            "version": 1,
-            "services": {
-                "web": {
-                    "source": {"git": "https://x.git", "ref": "main", "sha": "abc1234"},
-                    "command": "./run",
-                }
-            },
-            "routes": [{"host": "app.example.com", "paths": {"/": {"to": "web"}}}],
-        })
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "services": {
+                    "web": {
+                        "source": {"git": "https://x.git", "ref": "main", "sha": "abc1234"},
+                        "command": "./run",
+                    }
+                },
+                "routes": [{"host": "app.example.com", "paths": {"/": {"to": "web"}}}],
+            }
+        )
     )
     result = runner.invoke(app, ["routes", "--json", "--config", str(cfg)])
     assert result.exit_code == 0

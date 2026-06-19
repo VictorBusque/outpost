@@ -67,8 +67,12 @@ def test_update_happy_path_advances_sha(tmp_path: Path) -> None:
     )
 
     result = update(
-        "api", runner=fake, paths=paths, store=store,
-        config_path=cfg_path, staging_root=tmp_path / "stage",
+        "api",
+        runner=fake,
+        paths=paths,
+        store=store,
+        config_path=cfg_path,
+        staging_root=tmp_path / "stage",
     )
 
     assert result.ok and not result.no_op
@@ -100,7 +104,11 @@ def test_update_noop_when_already_at_latest(tmp_path: Path) -> None:
     )
 
     result = update(
-        "api", runner=fake, paths=paths, store=store, config_path=cfg_path,
+        "api",
+        runner=fake,
+        paths=paths,
+        store=store,
+        config_path=cfg_path,
     )
 
     assert result.ok and result.no_op
@@ -165,8 +173,12 @@ def test_update_apply_failure_still_writes_new_sha(tmp_path: Path) -> None:
     )
 
     result = update(
-        "api", runner=fake, paths=paths, store=store,
-        config_path=cfg_path, staging_root=tmp_path / "stage",
+        "api",
+        runner=fake,
+        paths=paths,
+        store=store,
+        config_path=cfg_path,
+        staging_root=tmp_path / "stage",
     )
 
     assert not result.ok
@@ -203,8 +215,13 @@ def test_update_with_ref_override(tmp_path: Path) -> None:
     )
 
     result = update(
-        "api", runner=fake, paths=paths, store=store,
-        config_path=cfg_path, ref="develop", staging_root=tmp_path / "stage",
+        "api",
+        runner=fake,
+        paths=paths,
+        store=store,
+        config_path=cfg_path,
+        ref="develop",
+        staging_root=tmp_path / "stage",
     )
 
     assert result.ok

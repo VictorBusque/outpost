@@ -38,7 +38,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, Template
 
 from sow.constants import NGINX_PORT
-from sow.models import sowConfig, Route, Service
+from sow.models import Route, Service, sowConfig
 
 __all__ = [
     "CloudflaredSpec",
@@ -390,9 +390,7 @@ def build_nginx_specs(config: sowConfig, ports: Mapping[str, int]) -> list[Nginx
     return specs
 
 
-def _route_upstream(
-    config: sowConfig, name: str, ports: Mapping[str, int], route: Route
-) -> str:
+def _route_upstream(config: sowConfig, name: str, ports: Mapping[str, int], route: Route) -> str:
     """Resolve a routed target service's ``proxy_pass`` URL.
 
     The model's topology validator already guaranteed ``to`` references a real

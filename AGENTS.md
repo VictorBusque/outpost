@@ -10,7 +10,7 @@ It is a **deployment engine, not an orchestrator**: one machine, one config, one
 
 ## Current state of this repo
 
-**Specification-only.** There is no implementation yet — only this `AGENTS.md`, `README.md`, `LICENSE`, and the design docs under `docs/v1/`. Treat the docs as the source of truth for intended behavior and conventions; any code you write must conform to them.
+**Implementation in progress.** The v1 codebase is actively built under `sow/` and `tests/`. The design documents under `docs/v1/` remain the source of truth for intended behavior; code must conform to them. 193 unit/integration tests pass, ruff reports clean, and `ty check` passes with zero diagnostics.
 
 ## The single loop
 
@@ -35,13 +35,13 @@ Reference docs (derived from the three above; they elaborate, not override):
 
 When the docs disagree, `rfc.md` is the authoritative reference for the exact command surface and file layout, and `prd.md`/`rfc.md` govern the schema; the reference docs are derived, so raise any discrepancy rather than silently picking one.
 
-## Target tech stack
+## Tech stack
 
 - **Language:** Python 3.12+
 - **Tooling:** `uv` (env + deps), `ruff` (format + lint), `ty` (strict type checking; Astral, currently in beta), `pytest`
 - **Libraries:** Typer (CLI), Pydantic v2 (schema), Jinja2 (config templates), `mcp` SDK (agent interface), native `subprocess` (system calls — no heavy wrappers)
 
-## Target codebase layout
+## Codebase layout
 
 ```
 sow/
@@ -85,18 +85,28 @@ These come straight from the docs and apply to all system-mutating code.
 - Config (user-owned, editable): `~/.config/sow/sow.yaml`
 - Runtime (sow-owned, do not hand-edit): `~/.local/share/sow/` — `repos/`, `data/`, `generated/{nginx,cloudflared,systemd}/`, `state.json`
 
-## Local development (once code exists)
+## Commit rules
+
+Every commit must pass these checks before push:
 
 ```bash
-uv sync                 # install deps
-uvx ruff check .        # lint
-uvx ruff format .       # format
-uvx ty .                # type check (strict)
-uv run pytest           # tests — mock subprocess.run + filesystem in engine tests
+uv sync                 # install deps (do first on fresh clone)
+uvx ruff check .        # lint — zero warnings
+uvx ruff format .       # format — sync before commit
+uvx ty check .          # type check — zero diagnostics
+uv run pytest           # tests — all pass
 ```
 
-## Conventions for editing this repo right now
+Pre-commit hooks are configured in `.pre-commit-config.yaml` (ruff fmt, ruff lint, ty, trailing-whitespace, end-of-file-fixer, YAML/TOML lint). Install with:
 
-- Markdown only so far. Keep docs and README internally consistent; the README's CLI table must match `rfc.md` §19.
-- Don't introduce code until the layout above is scaffolded; when you do, follow `stack.md` exactly.
+```bash
+uv run pre-commit install
+```
+
+The hooks enforce formatting, linting, and type-checking automatically. They do not run tests — run `uv run pytest` yourself before pushing.
+
+## Conventions for editing this repo
+
+- Keep docs and README internally consistent; the README's CLI table must match `rfc.md` §19.
+- Follow `stack.md` for code conventions.
 - If a doc says X and another says Y, flag it rather than guessing.

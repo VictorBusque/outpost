@@ -98,17 +98,13 @@ def test_apply_idempotent_noop_on_digest_match(tmp_path: Path) -> None:
     _script_active(fake, "api", active=True)
     staging = tmp_path / "stage"
 
-    result = apply(
-        runner=fake, paths=paths, config=cfg, store=store, staging_root=staging
-    )
+    result = apply(runner=fake, paths=paths, config=cfg, store=store, staging_root=staging)
 
     assert result.ok and result.no_op
     # No staging happened on a no-op.
     assert not staging.exists()
     # No reload was issued.
-    assert not any(
-        c.argv[:3] == ["systemctl", "--user", "reload"] for c in fake.calls
-    )
+    assert not any(c.argv[:3] == ["systemctl", "--user", "reload"] for c in fake.calls)
 
 
 # ===========================================================================
@@ -145,8 +141,12 @@ def test_apply_health_fail_rolls_back_to_last_known_good(tmp_path: Path) -> None
     _ok_default(fake)
     _script_nginx(fake, staging)
     apply(
-        runner=fake, paths=paths, config=good, store=store,
-        staging_root=staging, config_path=tmp_path / "sow.yaml",
+        runner=fake,
+        paths=paths,
+        config=good,
+        store=store,
+        staging_root=staging,
+        config_path=tmp_path / "sow.yaml",
     )
     good_digest = store.load().applied_digest
     assert good_digest != ""
@@ -160,8 +160,12 @@ def test_apply_health_fail_rolls_back_to_last_known_good(tmp_path: Path) -> None
     _ok_default(fake2)
     _script_nginx(fake2, staging)
     result = apply(
-        runner=fake2, paths=paths, config=broken, store=store,
-        staging_root=staging, config_path=tmp_path / "sow.yaml",
+        runner=fake2,
+        paths=paths,
+        config=broken,
+        store=store,
+        staging_root=staging,
+        config_path=tmp_path / "sow.yaml",
     )
 
     assert not result.ok
@@ -198,8 +202,12 @@ def test_apply_seeds_empty_sha_and_writes_it_back(tmp_path: Path) -> None:
     )
 
     result = apply(
-        runner=fake, paths=paths, config=cfg, store=store,
-        staging_root=tmp_path / "stage", config_path=cfg_path,
+        runner=fake,
+        paths=paths,
+        config=cfg,
+        store=store,
+        staging_root=tmp_path / "stage",
+        config_path=cfg_path,
     )
 
     assert result.ok
@@ -224,8 +232,12 @@ def test_apply_skips_build_when_marker_matches_sha(tmp_path: Path) -> None:
     _script_nginx(fake, tmp_path / "stage")
 
     apply(
-        runner=fake, paths=paths, config=cfg, store=store,
-        staging_root=tmp_path / "stage", config_path=tmp_path / "sow.yaml",
+        runner=fake,
+        paths=paths,
+        config=cfg,
+        store=store,
+        staging_root=tmp_path / "stage",
+        config_path=tmp_path / "sow.yaml",
     )
 
     assert not any(c.argv[:3] == ["sh", "-c", "make build"] for c in fake.calls)
@@ -244,8 +256,12 @@ def test_apply_rebuilds_when_marker_stale(tmp_path: Path) -> None:
     _script_nginx(fake, tmp_path / "stage")
 
     apply(
-        runner=fake, paths=paths, config=cfg, store=store,
-        staging_root=tmp_path / "stage", config_path=tmp_path / "sow.yaml",
+        runner=fake,
+        paths=paths,
+        config=cfg,
+        store=store,
+        staging_root=tmp_path / "stage",
+        config_path=tmp_path / "sow.yaml",
     )
 
     build_calls = [c for c in fake.calls if c.argv[:3] == ["sh", "-c", "make build"]]
@@ -273,8 +289,12 @@ def test_apply_reuses_previously_allocated_port(tmp_path: Path) -> None:
     _script_nginx(fake, tmp_path / "stage")
 
     apply(
-        runner=fake, paths=paths, config=cfg, store=store,
-        staging_root=tmp_path / "stage", config_path=tmp_path / "sow.yaml",
+        runner=fake,
+        paths=paths,
+        config=cfg,
+        store=store,
+        staging_root=tmp_path / "stage",
+        config_path=tmp_path / "sow.yaml",
     )
 
     assert store.load().ports["api"] == 18500

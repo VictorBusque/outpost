@@ -13,14 +13,14 @@ from __future__ import annotations
 import pytest
 
 from sow.engine.render import RenderError, build_spec, render_unit
-from sow.models import sowConfig, Service
+from sow.models import Service, sowConfig
 from tests.unit.conftest import minimal_config, minimal_service
 
 
 def _service(**overrides) -> Service:
-    return sowConfig.model_validate(
-        minimal_config({"api": minimal_service(**overrides)})
-    ).services["api"]
+    return sowConfig.model_validate(minimal_config({"api": minimal_service(**overrides)})).services[
+        "api"
+    ]
 
 
 # ---------------------------------------------------------------------------

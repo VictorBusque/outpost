@@ -31,6 +31,7 @@ def _runtime_default() -> Path:
 def _user_units_default() -> Path:
     return Path.home() / ".config" / "systemd" / "user"
 
+
 # The three generated subdirs swapped as a unit by the apply pipeline.
 _GENERATED_SUBDIRS: tuple[str, ...] = ("systemd", "nginx", "cloudflared")
 

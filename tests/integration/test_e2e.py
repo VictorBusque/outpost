@@ -57,8 +57,12 @@ def test_e2e_lifecycle(tmp_path: Path) -> None:
     _setup(fake1, staging, repo)
     # build marker doesn't exist → build runs
     r = apply(
-        runner=fake1, paths=paths, config=cfg,
-        store=store, staging_root=staging, config_path=cfg_path,
+        runner=fake1,
+        paths=paths,
+        config=cfg,
+        store=store,
+        staging_root=staging,
+        config_path=cfg_path,
     )
     assert r.ok, f"first apply failed: {r.message}"
     assert not r.no_op
@@ -78,8 +82,12 @@ def test_e2e_lifecycle(tmp_path: Path) -> None:
         returns=CompletedProcess(0, "", ""),
     )
     r = apply(
-        runner=fake2, paths=paths, config=cfg,
-        store=store, staging_root=staging, config_path=cfg_path,
+        runner=fake2,
+        paths=paths,
+        config=cfg,
+        store=store,
+        staging_root=staging,
+        config_path=cfg_path,
     )
     assert r.ok and r.no_op, f"no-op apply failed: {r.message}"
 
@@ -91,8 +99,12 @@ def test_e2e_lifecycle(tmp_path: Path) -> None:
         returns=CompletedProcess(0, "deadbeefcafe\n", ""),
     )
     r = update(
-        "api", runner=fake3, paths=paths,
-        store=store, config_path=cfg_path, staging_root=staging,
+        "api",
+        runner=fake3,
+        paths=paths,
+        store=store,
+        config_path=cfg_path,
+        staging_root=staging,
     )
     assert r.ok, f"update failed: {r.message}"
     assert not r.no_op
@@ -111,8 +123,12 @@ def test_e2e_lifecycle(tmp_path: Path) -> None:
         returns=CompletedProcess(0, "deadbeefcafe\n", ""),
     )
     r = update(
-        "api", runner=fake4, paths=paths,
-        store=store, config_path=cfg_path, staging_root=staging,
+        "api",
+        runner=fake4,
+        paths=paths,
+        store=store,
+        config_path=cfg_path,
+        staging_root=staging,
     )
     assert r.ok and r.no_op, f"update no-op should be no_op: {r.message}"
 
@@ -127,8 +143,12 @@ def test_e2e_lifecycle(tmp_path: Path) -> None:
     _setup(fake5, staging, repo)
     # No need to script nginx differently; health is the failing gate.
     r = apply(
-        runner=fake5, paths=paths, config=bad_cfg,
-        store=store, staging_root=staging, config_path=cfg_path,
+        runner=fake5,
+        paths=paths,
+        config=bad_cfg,
+        store=store,
+        staging_root=staging,
+        config_path=cfg_path,
     )
     assert not r.ok, "apply with failing health should roll back"
     assert "rolled back" in r.message
