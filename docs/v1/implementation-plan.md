@@ -78,7 +78,7 @@ These are the details the specs left to implementation. Pinning them now prevent
 
 Effort labels are rough (S/M/L). Each phase lists tasks, its dependency, and a definition of done (DoD).
 
-> **Status:** Phases 0–8 are complete (`ruff`/`ty`/`pytest` green; 192 tests). **Next up: Phase 9 — init & install**, which wires `outpost init` (env checks, runtime tree, NGINX nginx.conf, enable+start platform units) and `install.sh`. The CLI surface already exists; the engine logic for init is new.
+> **Status:** Phases 0–9 are complete (`ruff`/`ty`/`pytest` green; 192 tests). **Next up: Phase 10 — Hardening & polish**, which ties up loose ends: bounded logs and scrubbed env everywhere, error messages with remediation hints, an end-to-end integration test (apply → update → rollback), CLI help text synced with ``cli-reference.md``, and the README quickstart.
 
 
 ### Phase 0 — Scaffolding (S) — ✅ DONE

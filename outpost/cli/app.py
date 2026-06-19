@@ -23,6 +23,7 @@ import typer
 from outpost import __version__
 from outpost import config as outpost_config
 from outpost.engine.apply import apply as _apply
+from outpost.engine.init import init as _init
 from outpost.engine.update import update as _update
 from outpost.paths import RuntimePaths
 from outpost.state.store import StateStore
@@ -210,6 +211,20 @@ def restart(
         f"systemctl --user restart {service}",
         lambda: systemctl.restart(_runner, f"{service}.service"),
     )
+
+
+# ===========================================================================
+# init
+# ===========================================================================
+
+
+@app.command()
+def init() -> None:
+    """Bootstrap the platform: check deps, create configs, enable units."""
+    result = _init(runner=_runner)
+    typer.echo(result.message)
+    if not result.ok:
+        raise typer.Exit(code=_EXIT_OPERATIONAL)
 
 
 # ===========================================================================

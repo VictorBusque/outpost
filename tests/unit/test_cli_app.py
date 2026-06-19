@@ -20,8 +20,9 @@ from outpost.cli.app import app
 
 runner = CliRunner()
 
-# 14 commands from rfc.md §19 (init deferred to Phase 9).
+# 14 commands from rfc.md §19.
 _REQUIRED_COMMANDS: frozenset[str] = frozenset({
+    "init",
     "validate",
     "apply",
     "update",
