@@ -1,4 +1,4 @@
-# Example Outpost config — exhaustive and realistic.
+# Example sow config — exhaustive and realistic.
 #
 # This is a made-up but plausible stack for a fictional org "acme". It exercises
 # every documented field so it doubles as a schema walkthrough and a test fixture.
@@ -20,7 +20,7 @@ services:
     source:
       git: https://github.com/acme/web.git
       ref: main
-      sha: 9f2c1a4e7b3d1c8a0f5e6d7c8b9a0f1e2d3c4b5a   # deployed commit; written by outpost
+      sha: 9f2c1a4e7b3d1c8a0f5e6d7c8b9a0f1e2d3c4b5a   # deployed commit; written by sow
     # command may include inline args; `args` below are appended to it.
     command: ./bin/web serve
     args: ["--addr", "${ADDRESS}"]                    # platform injects ADDRESS=127.0.0.1:8080

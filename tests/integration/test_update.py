@@ -11,12 +11,12 @@ from pathlib import Path
 
 import yaml
 
-from outpost import config as config_mod
-from outpost.engine.update import update
-from outpost.models import OutpostConfig
-from outpost.paths import RuntimePaths
-from outpost.state.store import State, StateStore
-from outpost.sysdeps.run import CompletedProcess
+from sow import config as config_mod
+from sow.engine.update import update
+from sow.models import sowConfig
+from sow.paths import RuntimePaths
+from sow.state.store import State, StateStore
+from sow.sysdeps.run import CompletedProcess
 from tests.mocks.runner import FakeRunner
 from tests.unit.conftest import minimal_config, minimal_service
 
@@ -36,8 +36,8 @@ def _script_nginx(fake: FakeRunner, staging: Path, *, ok: bool = True) -> None:
     fake.script(argv, returns=_NGINX_OK if ok else CompletedProcess(1, "", "bad config\n"))
 
 
-def _config(services: dict, **overrides) -> OutpostConfig:  # type: ignore[no-untyped-def]
-    return OutpostConfig.model_validate(minimal_config(services, **overrides))
+def _config(services: dict, **overrides) -> sowConfig:  # type: ignore[no-untyped-def]
+    return sowConfig.model_validate(minimal_config(services, **overrides))
 
 
 # ===========================================================================
@@ -51,7 +51,7 @@ def test_update_happy_path_advances_sha(tmp_path: Path) -> None:
     store = StateStore(paths.state)
     # Seed a config with a known sha.
     svc = minimal_service(sha="abc1234")
-    cfg_path = tmp_path / "outpost.yaml"
+    cfg_path = tmp_path / "sow.yaml"
     cfg_path.write_text(yaml.safe_dump(minimal_config({"api": svc})), encoding="utf-8")
     cfg = _config({"api": svc})
     store.save(State(applied_digest=config_mod.digest(cfg), ports={"api": 18000}))
@@ -85,7 +85,7 @@ def test_update_noop_when_already_at_latest(tmp_path: Path) -> None:
     paths.base.mkdir(parents=True)
     repo_dir = paths.repos / "api"
     svc = minimal_service(sha="abc1234")
-    cfg_path = tmp_path / "outpost.yaml"
+    cfg_path = tmp_path / "sow.yaml"
     cfg_path.write_text(yaml.safe_dump(minimal_config({"api": svc})), encoding="utf-8")
     store = StateStore(paths.state)
     cfg = _config({"api": svc})
@@ -119,7 +119,7 @@ def test_update_fetch_failure_leaves_state_unchanged(tmp_path: Path) -> None:
     paths.base.mkdir(parents=True)
     store = StateStore(paths.state)
     svc = minimal_service(sha="abc1234")
-    cfg_path = tmp_path / "outpost.yaml"
+    cfg_path = tmp_path / "sow.yaml"
     cfg_path.write_text(yaml.safe_dump(minimal_config({"api": svc})), encoding="utf-8")
     cfg = _config({"api": svc})
     store.save(State(applied_digest=config_mod.digest(cfg), ports={"api": 18000}))
@@ -149,7 +149,7 @@ def test_update_apply_failure_still_writes_new_sha(tmp_path: Path) -> None:
     paths.base.mkdir(parents=True)
     store = StateStore(paths.state)
     svc = minimal_service(sha="abc1234")
-    cfg_path = tmp_path / "outpost.yaml"
+    cfg_path = tmp_path / "sow.yaml"
     cfg_path.write_text(yaml.safe_dump(minimal_config({"api": svc})), encoding="utf-8")
     cfg = _config({"api": svc})
     store.save(State(applied_digest=config_mod.digest(cfg), ports={"api": 18000}))
@@ -187,7 +187,7 @@ def test_update_with_ref_override(tmp_path: Path) -> None:
     paths.base.mkdir(parents=True)
     store = StateStore(paths.state)
     svc = minimal_service(ref="main", sha="abc1234")
-    cfg_path = tmp_path / "outpost.yaml"
+    cfg_path = tmp_path / "sow.yaml"
     cfg_path.write_text(yaml.safe_dump(minimal_config({"api": svc})), encoding="utf-8")
     cfg = _config({"api": svc})
     store.save(State(applied_digest=config_mod.digest(cfg), ports={"api": 18000}))

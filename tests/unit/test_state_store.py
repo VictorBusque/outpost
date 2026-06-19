@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from outpost.state.store import State, StateError, StateStore
+from sow.state.store import State, StateError, StateStore
 
 
 def test_load_missing_file_is_empty_state(tmp_path: Path) -> None:

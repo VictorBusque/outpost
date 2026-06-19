@@ -12,24 +12,24 @@ from __future__ import annotations
 
 import pytest
 
-from outpost.engine.render import (
+from sow.engine.render import (
     RenderError,
     build_nginx_specs,
     render_cloudflared,
     render_nginx,
 )
-from outpost.models import OutpostConfig
+from sow.models import sowConfig
 from tests.unit.conftest import minimal_config, minimal_service
 
 
 def _config_with_routes(
     services: dict, routes: list, exposure: dict | None = None
-) -> OutpostConfig:
+) -> sowConfig:
     cfg = minimal_config(services)
     cfg["routes"] = routes
     if exposure is not None:
         cfg["exposure"] = exposure
-    return OutpostConfig.model_validate(cfg)
+    return sowConfig.model_validate(cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -118,11 +118,11 @@ def test_allocated_port_upstream() -> None:
 
 def test_unix_socket_upstream() -> None:
     cfg = _config_with_routes(
-        {"api": minimal_service(listen="/run/outpost/api.sock")},
+        {"api": minimal_service(listen="/run/sow/api.sock")},
         [{"host": "app.example.com", "paths": {"/": {"to": "api"}}}],
     )
     assert (
-        build_nginx_specs(cfg, {})[0].locations[0].upstream == "http://unix:/run/outpost/api.sock"
+        build_nginx_specs(cfg, {})[0].locations[0].upstream == "http://unix:/run/sow/api.sock"
     )
 
 

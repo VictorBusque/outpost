@@ -1,15 +1,15 @@
 """A recording, scriptable stand-in for ``RealRunner`` — the test-side strategy.
 
-The whole point of the :class:`~outpost.sysdeps.run.Runner` seam is that wrappers
+The whole point of the :class:`~sow.sysdeps.run.Runner` seam is that wrappers
 can be exercised without a host. ``FakeRunner`` records every ``run`` call into
 ``self.calls`` (so a test asserts on the *exact* argv, cwd, env, and check) and
-resolves a canned :class:`~outpost.sysdeps.run.CompletedProcess` per call, keyed
+resolves a canned :class:`~sow.sysdeps.run.CompletedProcess` per call, keyed
 on the **exact** ``tuple(argv)``. Matching is order-sensitive and deliberately
 has no globbing: the Phase 2 DoD demands exact command lines, and fuzzy matching
 would let a wrong argv slip through.
 
 When the canned returncode is non-zero and the call passed ``check=True`` the
-FakeRunner raises the *real* :class:`~outpost.sysdeps.run.SubprocessError` — so a
+FakeRunner raises the *real* :class:`~sow.sysdeps.run.SubprocessError` — so a
 stderr-propagation test asserts on the same exception type and fields production
 raises. An unscripted argv raises :class:`FakeRunnerNotScripted` (an
 ``AssertionError``), failing the test loudly rather than silently returning a
@@ -34,7 +34,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from outpost.sysdeps.run import CompletedProcess, SubprocessError
+from sow.sysdeps.run import CompletedProcess, SubprocessError
 
 __all__ = ["FakeRunner", "FakeRunnerNotScripted", "RecordedCall"]
 

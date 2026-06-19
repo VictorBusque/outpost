@@ -16,7 +16,7 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from outpost.cli.app import app
+from sow.cli.app import app
 
 runner = CliRunner()
 
@@ -48,11 +48,11 @@ def test_all_required_commands_exist() -> None:
 def test_version(tmp_path: Path) -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "outpost" in result.stdout
+    assert "sow" in result.stdout
 
 
 def test_validate_valid(tmp_path: Path) -> None:
-    cfg = tmp_path / "outpost.yaml"
+    cfg = tmp_path / "sow.yaml"
     cfg.write_text("version: 1\nservices:\n  api:\n    source: {git: https://x.git, sha: abc1234}\n    command: ./run\n")
     result = runner.invoke(app, ["validate", "--config", str(cfg)])
     assert result.exit_code == 0
@@ -106,7 +106,7 @@ def test_ps_routes_exposure_help(tmp_path: Path) -> None:
 
 
 def test_status_json(tmp_path: Path) -> None:
-    cfg = tmp_path / "outpost.yaml"
+    cfg = tmp_path / "sow.yaml"
     cfg.write_text("version: 1\nservices:\n  api:\n    source: {git: https://x.git, sha: abc1234}\n    command: ./run\n")
     result = runner.invoke(app, ["status", "--json", "--config", str(cfg)])
     # status calls systemctl, which fails in the test runner — but we still get
@@ -120,7 +120,7 @@ def test_status_json(tmp_path: Path) -> None:
 
 
 def test_exposure_json_none(tmp_path: Path) -> None:
-    cfg = tmp_path / "outpost.yaml"
+    cfg = tmp_path / "sow.yaml"
     cfg.write_text("version: 1\nservices:\n  api:\n    source: {git: https://x.git, sha: abc1234}\n    command: ./run\n")
     result = runner.invoke(app, ["exposure", "--json", "--config", str(cfg)])
     assert result.exit_code == 0
@@ -128,7 +128,7 @@ def test_exposure_json_none(tmp_path: Path) -> None:
 
 
 def test_routes_json(tmp_path: Path) -> None:
-    cfg = tmp_path / "outpost.yaml"
+    cfg = tmp_path / "sow.yaml"
     cfg.write_text(
         yaml.safe_dump({
             "version": 1,

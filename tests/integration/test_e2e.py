@@ -11,12 +11,12 @@ from pathlib import Path
 
 import yaml
 
-from outpost import config as config_mod
-from outpost.engine.apply import apply
-from outpost.engine.update import update
-from outpost.paths import RuntimePaths
-from outpost.state.store import StateStore
-from outpost.sysdeps.run import CompletedProcess
+from sow import config as config_mod
+from sow.engine.apply import apply
+from sow.engine.update import update
+from sow.paths import RuntimePaths
+from sow.state.store import StateStore
+from sow.sysdeps.run import CompletedProcess
 from tests.mocks.runner import FakeRunner
 from tests.unit.conftest import minimal_config
 
@@ -38,7 +38,7 @@ def test_e2e_lifecycle(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
     paths.base.mkdir(parents=True)
     store = StateStore(paths.state)
-    cfg_path = tmp_path / "outpost.yaml"
+    cfg_path = tmp_path / "sow.yaml"
     staging = tmp_path / "stage"
     repo = paths.repos / "api"
     (repo / ".git").mkdir(parents=True)

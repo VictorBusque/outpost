@@ -28,5 +28,5 @@ dist/
 # Claude Code local config (Kimetsu hooks etc.) — personal, not shared
 .claude/
 
-# Outpost runtime artifacts (never relevant to the source tree)
+# SOW runtime artifacts (never relevant to the source tree)
 .local/

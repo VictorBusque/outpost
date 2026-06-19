@@ -1,7 +1,7 @@
 """Tests for the NGINX wrappers.
 
 DoD core: ``test`` builds the exact argv with and without ``-p``; ``reload``
-issues ``systemctl --user reload outpost-nginx`` (this test guards the
+issues ``systemctl --user reload sow-nginx`` (this test guards the
 ``prd.md`` §169 decision — if someone later "simplifies" to ``nginx -s reload``,
 it fails); ``test`` propagates ``nginx -t`` syntax errors.
 """
@@ -12,12 +12,12 @@ from pathlib import Path
 
 import pytest
 
-from outpost.sysdeps import nginx
-from outpost.sysdeps.run import CompletedProcess, SubprocessError
+from sow.sysdeps import nginx
+from sow.sysdeps.run import CompletedProcess, SubprocessError
 from tests.mocks import FakeRunner
 
-CONF = Path("/srv/outpost/generated/nginx/staging/nginx.conf")
-PREFIX = Path("/srv/outpost/generated/nginx/staging")
+CONF = Path("/srv/sow/generated/nginx/staging/nginx.conf")
+PREFIX = Path("/srv/sow/generated/nginx/staging")
 
 
 # ---------------------------------------------------------------------------
@@ -57,14 +57,14 @@ def test_test_propagates_stderr_on_syntax_error():
 # ---------------------------------------------------------------------------
 
 
-def test_reload_uses_systemctl_user_reload_outpost_nginx():
+def test_reload_uses_systemctl_user_reload_sow_nginx():
     fake = FakeRunner()
     fake.script(
-        ["systemctl", "--user", "reload", "outpost-nginx"], returns=CompletedProcess(0, "", "")
+        ["systemctl", "--user", "reload", "sow-nginx"], returns=CompletedProcess(0, "", "")
     )
     nginx.reload(fake)
-    assert fake.argvs == [["systemctl", "--user", "reload", "outpost-nginx"]]
+    assert fake.argvs == [["systemctl", "--user", "reload", "sow-nginx"]]
 
 
 def test_reload_unit_name_constant():
-    assert nginx.NGINX_UNIT == "outpost-nginx"
+    assert nginx.NGINX_UNIT == "sow-nginx"

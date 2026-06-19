@@ -12,13 +12,13 @@ from __future__ import annotations
 
 import pytest
 
-from outpost.engine.render import RenderError, build_spec, render_unit
-from outpost.models import OutpostConfig, Service
+from sow.engine.render import RenderError, build_spec, render_unit
+from sow.models import sowConfig, Service
 from tests.unit.conftest import minimal_config, minimal_service
 
 
 def _service(**overrides) -> Service:
-    return OutpostConfig.model_validate(
+    return sowConfig.model_validate(
         minimal_config({"api": minimal_service(**overrides)})
     ).services["api"]
 
@@ -50,10 +50,10 @@ def test_allocated_port_sets_127_0_0_1_address():
 
 
 def test_unix_listen_omits_port_and_address_is_socket_path():
-    svc = _service(listen="/run/outpost/api.sock")
+    svc = _service(listen="/run/sow/api.sock")
     spec = build_spec("api", svc, port=None)
     env = dict(line.split("=", 1) for line in spec.environment)
-    assert env["ADDRESS"] == "/run/outpost/api.sock"
+    assert env["ADDRESS"] == "/run/sow/api.sock"
     assert "PORT" not in env  # unix sockets have no TCP port
 
 
@@ -66,7 +66,7 @@ def test_data_dir_interpolated_in_env_value():
     svc = _service(environment={"DB": "${DATA_DIR}/app.db"})
     spec = build_spec("api", svc, port=18000)
     env = dict(line.split("=", 1) for line in spec.environment)
-    assert env["DB"].endswith("/.local/share/outpost/data/api/app.db")
+    assert env["DB"].endswith("/.local/share/sow/data/api/app.db")
 
 
 def test_address_interpolated_in_args():

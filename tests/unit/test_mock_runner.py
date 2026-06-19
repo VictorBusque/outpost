@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from outpost.sysdeps.run import CompletedProcess, SubprocessError
+from sow.sysdeps.run import CompletedProcess, SubprocessError
 from tests.mocks import FakeRunner, FakeRunnerNotScripted
 
 ARGV = ["systemctl", "--user", "is-active", "--quiet", "api"]

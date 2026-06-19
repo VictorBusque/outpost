@@ -1,8 +1,8 @@
-# Outpost `outpost.yaml` — Config Schema Reference (v1)
+# sow `sow.yaml` — Config Schema Reference (v1)
 
 ## Purpose and authority
 
-This is the canonical field-level schema for `~/.config/outpost/outpost.yaml`. It is the contract the Pydantic models in `models/` implement: every key, type, default, and validation rule lives here.
+This is the canonical field-level schema for `~/.config/sow/sow.yaml`. It is the contract the Pydantic models in `models/` implement: every key, type, default, and validation rule lives here.
 
 It is **derived from** `prd.md` and `rfc.md`. If this reference and those specs ever disagree, the specs govern — raise the discrepancy rather than silently picking one. Where the specs left a detail open (e.g. `restart` default, the TCP-check shape), this document pins it; changing such a value is a doc change, not a silent implementation choice.
 
@@ -55,7 +55,7 @@ The controller sets sane `RestartSec=`, `StartLimitBurst=`, `StartLimitIntervalS
 | `sha` | str | no | empty | Exact deployed commit — the **deploy target** `apply` checks out. Empty before first deploy; seeded once by `apply`, advanced only by `update`. |
 | `path` | str | no | repo root | Subdirectory for monorepos. Sets `WorkingDirectory=` to `<clone>/<path>`; `command`/`build` run there. |
 
-Clones are keyed **per service name** under `~/.local/share/outpost/repos/<name>`, so two services from the same repo get independent clones. Local edits in a managed clone are overwritten on update by design.
+Clones are keyed **per service name** under `~/.local/share/sow/repos/<name>`, so two services from the same repo get independent clones. Local edits in a managed clone are overwritten on update by design.
 
 ### `services.<name>.health`
 
@@ -77,7 +77,7 @@ For every service, the controller injects (via the unit's `Environment=`):
 | --- | --- |
 | `PORT` | The port (TCP only). |
 | `ADDRESS` | `host:port` for TCP; the socket path for a unix `listen`. |
-| `DATA_DIR` | Persistent per-service dir, default `~/.local/share/outpost/data/<name>`. Never touched by updates. |
+| `DATA_DIR` | Persistent per-service dir, default `~/.local/share/sow/data/<name>`. Never touched by updates. |
 
 Precedence (highest → lowest):
 
@@ -133,7 +133,7 @@ exposure:
     hosts: [<str>, ...]         # required
 ```
 
-`hosts` is the subset of routed vhosts exposed publicly via the tunnel. A vhost in `routes` but absent from `hosts` is served locally/LAN only. The traffic path is `cloudflared → NGINX (127.0.0.1:41999) → service`; cloudflared terminates TLS and owns the public certificate — Outpost issues, stores, or renews no certificates.
+`hosts` is the subset of routed vhosts exposed publicly via the tunnel. A vhost in `routes` but absent from `hosts` is served locally/LAN only. The traffic path is `cloudflared → NGINX (127.0.0.1:41999) → service`; cloudflared terminates TLS and owns the public certificate — sow issues, stores, or renews no certificates.
 
 ## Validation rules (collected)
 
@@ -149,7 +149,7 @@ These all fail `apply`/`validate` fast with a clear error before any system muta
 - `health`, if present, has exactly one of `http`/`tcp`; `health.timeout` must be positive.
 - `restart`, if present, is one of the accepted systemd values.
 - `routes` has no duplicate `host`; every `paths.*.to` references a defined service.
-- `exposure.hosts` (if present) must each match a `host` (or wildcard) declared in `routes`.
+- `exposure.hosts` (if present) must each match a `host` (or wildcard) declared in `routes`. Wildcards use `fnmatch`-style globbing (`app.example.com` matches `*.example.com`).
 
 ## Full example
 

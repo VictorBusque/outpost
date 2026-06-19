@@ -10,13 +10,13 @@ from pathlib import Path
 
 import pytest
 
-from outpost.config import DEFAULT_CONFIG_PATH, ConfigError, digest, load
-from outpost.models import OutpostConfig
+from sow.config import DEFAULT_CONFIG_PATH, ConfigError, digest, load
+from sow.models import sowConfig
 from tests.unit.conftest import minimal_config, minimal_service
 
 
-def _config(services=None, **overrides) -> OutpostConfig:
-    return OutpostConfig.model_validate(minimal_config(services, **overrides))
+def _config(services=None, **overrides) -> sowConfig:
+    return sowConfig.model_validate(minimal_config(services, **overrides))
 
 
 # ---------------------------------------------------------------------------
@@ -60,21 +60,21 @@ def test_load_missing_file(tmp_path: Path):
 
 
 def test_load_empty_file(tmp_path: Path):
-    p = tmp_path / "outpost.yaml"
+    p = tmp_path / "sow.yaml"
     p.write_text("")
     with pytest.raises(ConfigError, match="empty"):
         load(p)
 
 
 def test_load_malformed_yaml(tmp_path: Path):
-    p = tmp_path / "outpost.yaml"
+    p = tmp_path / "sow.yaml"
     p.write_text("version: 1\n  bad: : : indent\n")
     with pytest.raises(ConfigError, match="not valid YAML"):
         load(p)
 
 
 def test_load_validation_error_collected(tmp_path: Path):
-    p = tmp_path / "outpost.yaml"
+    p = tmp_path / "sow.yaml"
     p.write_text("version: 1\nservices:\n  api:\n    command: ./run\n")  # missing source
     with pytest.raises(ConfigError) as exc_info:
         load(p)
@@ -82,7 +82,7 @@ def test_load_validation_error_collected(tmp_path: Path):
 
 
 def test_load_valid_yaml(tmp_path: Path):
-    p = tmp_path / "outpost.yaml"
+    p = tmp_path / "sow.yaml"
     p.write_text(
         "version: 1\n"
         "services:\n"
@@ -91,9 +91,9 @@ def test_load_valid_yaml(tmp_path: Path):
         "    command: ./run\n"
     )
     cfg = load(p)
-    assert isinstance(cfg, OutpostConfig)
+    assert isinstance(cfg, sowConfig)
     assert cfg.services["api"].command == "./run"
 
 
 def test_default_config_path_is_xdg():
-    assert (Path.home() / ".config" / "outpost" / "outpost.yaml") == DEFAULT_CONFIG_PATH
+    assert (Path.home() / ".config" / "sow" / "sow.yaml") == DEFAULT_CONFIG_PATH

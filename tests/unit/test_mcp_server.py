@@ -14,8 +14,8 @@ from pathlib import Path
 
 import yaml
 
-from outpost.mcp import server as mcp_srv
-from outpost.sysdeps.run import CompletedProcess
+from sow.mcp import server as mcp_srv
+from sow.sysdeps.run import CompletedProcess
 from tests.mocks.runner import FakeRunner
 
 # 11 tools from ``cli-reference.md``.
@@ -46,7 +46,7 @@ def test_all_required_tools_are_defined() -> None:
 
 
 def test_validate_config_returns_valid(tmp_path: Path) -> None:
-    cfg = tmp_path / "outpost.yaml"
+    cfg = tmp_path / "sow.yaml"
     cfg.write_text(
         yaml.safe_dump({
             "version": 1,
@@ -77,7 +77,7 @@ def test_validate_config_invalid(tmp_path: Path) -> None:
 
 
 def test_show_routes_empty(tmp_path: Path) -> None:
-    cfg = tmp_path / "outpost.yaml"
+    cfg = tmp_path / "sow.yaml"
     cfg.write_text(
         yaml.safe_dump({
             "version": 1,
@@ -93,7 +93,7 @@ def test_show_routes_empty(tmp_path: Path) -> None:
 
 
 def test_show_exposure_configured(tmp_path: Path) -> None:
-    cfg = tmp_path / "outpost.yaml"
+    cfg = tmp_path / "sow.yaml"
     cfg.write_text(
         yaml.safe_dump({
             "version": 1,
@@ -112,7 +112,7 @@ def test_show_exposure_configured(tmp_path: Path) -> None:
 
 def test_list_services_with_mocked_runner(tmp_path: Path) -> None:
     """list_services catches sysdep errors gracefully (unit == 'unknown')."""
-    cfg = tmp_path / "outpost.yaml"
+    cfg = tmp_path / "sow.yaml"
     cfg.write_text(
         yaml.safe_dump({
             "version": 1,
@@ -142,7 +142,7 @@ def test_list_services_with_mocked_runner(tmp_path: Path) -> None:
 
 
 def test_show_exposure_none(tmp_path: Path) -> None:
-    cfg = tmp_path / "outpost.yaml"
+    cfg = tmp_path / "sow.yaml"
     cfg.write_text(
         yaml.safe_dump({
             "version": 1,

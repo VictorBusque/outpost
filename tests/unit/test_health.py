@@ -16,8 +16,8 @@ from socket import AF_INET, AF_UNIX, SOCK_STREAM
 
 import pytest
 
-from outpost.engine.health import HealthCheckError, check_once, wait_for
-from outpost.models import Health, HttpHealth
+from sow.engine.health import HealthCheckError, check_once, wait_for
+from sow.models import Health, HttpHealth
 
 _HTTP = Health(http=HttpHealth(path="/healthz"), timeout=1)
 _TCP = Health(tcp=True, timeout=1)
@@ -95,7 +95,7 @@ def _bind_unix(path: str) -> socket.socket:
 
 
 def test_unix_tcp_probe_passes() -> None:
-    path = "/tmp/outpost-test-tcp.sock"
+    path = "/tmp/sow-test-tcp.sock"
     try:
         sock = _bind_unix(path)
     except OSError:
@@ -109,7 +109,7 @@ def test_unix_tcp_probe_passes() -> None:
 
 
 def test_unix_http_probe_passes() -> None:
-    path = "/tmp/outpost-test-http.sock"
+    path = "/tmp/sow-test-http.sock"
     try:
         sock = _bind_unix(path)
     except OSError:

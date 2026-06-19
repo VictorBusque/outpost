@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from outpost.sysdeps import journalctl
-from outpost.sysdeps.run import CompletedProcess, SubprocessError
+from sow.sysdeps import journalctl
+from sow.sysdeps.run import CompletedProcess, SubprocessError
 from tests.mocks import FakeRunner
 
 UNIT = "api"

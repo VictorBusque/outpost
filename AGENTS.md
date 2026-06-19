@@ -2,9 +2,9 @@
 
 Guidance for coding agents and contributors working in this repository.
 
-## What Outpost is
+## What sow is
 
-Outpost is a **deterministic, single-node Linux micro-platform control plane.** It takes one declarative YAML file and turns it into running `systemd --user` services behind a user-level NGINX reverse proxy, exposed publicly through Cloudflare Tunnel. It also ships a stdio MCP server so coding agents can operate the platform through typed tools instead of raw shell access.
+sow is a **deterministic, single-node Linux micro-platform control plane.** It takes one declarative YAML file and turns it into running `systemd --user` services behind a user-level NGINX reverse proxy, exposed publicly through Cloudflare Tunnel. It also ships a stdio MCP server so coding agents can operate the platform through typed tools instead of raw shell access.
 
 It is a **deployment engine, not an orchestrator**: one machine, one config, one execution loop. No containers, no schedulers, no root daemons.
 
@@ -14,7 +14,7 @@ It is a **deployment engine, not an orchestrator**: one machine, one config, one
 
 ## The single loop
 
-> A YAML file defines git-sourced services and host/path routes → Outpost renders systemd user units and NGINX config → services run behind a Cloudflare Tunnel.
+> A YAML file defines git-sourced services and host/path routes → sow renders systemd user units and NGINX config → services run behind a Cloudflare Tunnel.
 
 Everything in v1 is derived from this loop. The four primitives are **service**, **route**, **apply**, and **update**.
 
@@ -28,7 +28,7 @@ Read these before writing or reviewing code:
 
 Reference docs (derived from the three above; they elaborate, not override):
 
-- `docs/v1/config-schema.md` — the canonical `outpost.yaml` field schema: every key, type, default, and validation rule. This is the contract the Pydantic models implement.
+- `docs/v1/config-schema.md` — the canonical `sow.yaml` field schema: every key, type, default, and validation rule. This is the contract the Pydantic models implement.
 - `docs/v1/cli-reference.md` — full CLI command + MCP tool contracts (flags, args, exit codes, input/output schemas).
 - `docs/v1/examples/full-stack.yaml` — an exhaustive, realistic example config exercising every field.
 - `docs/v1/implementation-plan.md` — the v1 build roadmap: phased task decomposition, cross-cutting technical decisions, testing strategy, risks. A living plan, not a normative spec.
@@ -44,7 +44,7 @@ When the docs disagree, `rfc.md` is the authoritative reference for the exact co
 ## Target codebase layout
 
 ```
-outpost/
+sow/
 ├── cli/         # Typer command definitions (human interface)
 ├── mcp/         # stdio server + tool definitions (agent interface)
 ├── engine/      # core loop: validate, render, apply, update
@@ -63,13 +63,13 @@ These come straight from the docs and apply to all system-mutating code.
 
 **Fail-fast.** Catch `subprocess.CalledProcessError`, log the exact stderr, and exit the run loop with a non-zero code. Never attempt partial recovery mid-apply.
 
-**Atomicity.** Render configs to a temp dir, validate (`nginx -t`), then swap via `os.replace()`. State files (`state.json`) and config rewrites (`outpost.yaml`) must be written to a `.tmp` file and atomically renamed. v1 applies are all-or-nothing: on invalid config or failed startup health check, revert to the last-known-good backup. NGINX is reloaded only after the startup health check passes, so live traffic never reaches a service that failed its gate. Concurrent-CLI file locking (e.g. `fcntl.flock`) is deferred — v1 assumes a single operator.
+**Atomicity.** Render configs to a temp dir, validate (`nginx -t`), then swap via `os.replace()`. State files (`state.json`) and config rewrites (`sow.yaml`) must be written to a `.tmp` file and atomically renamed. v1 applies are all-or-nothing: on invalid config or failed startup health check, revert to the last-known-good backup. NGINX is reloaded only after the startup health check passes, so live traffic never reaches a service that failed its gate. Concurrent-CLI file locking (e.g. `fcntl.flock`) is deferred — v1 assumes a single operator.
 
 **Idempotency.** `apply` compares the spec digest to the stored applied digest and no-ops if they match and services are up. `systemctl`/`git` wrappers must no-op when the desired state is already met.
 
 **Strict typing.** `ty` in strict mode across CLI and MCP schemas. No dynamic type drift in engine logic.
 
-**Pure, immutable models.** Once `outpost.yaml` is parsed into a Pydantic model, treat it as immutable; mutations return a new instance to be saved.
+**Pure, immutable models.** Once `sow.yaml` is parsed into a Pydantic model, treat it as immutable; mutations return a new instance to be saved.
 
 ## Source-of-truth facts to keep straight
 
@@ -82,8 +82,8 @@ These come straight from the docs and apply to all system-mutating code.
 
 ## Paths (XDG-strict)
 
-- Config (user-owned, editable): `~/.config/outpost/outpost.yaml`
-- Runtime (Outpost-owned, do not hand-edit): `~/.local/share/outpost/` — `repos/`, `data/`, `generated/{nginx,cloudflared,systemd}/`, `state.json`
+- Config (user-owned, editable): `~/.config/sow/sow.yaml`
+- Runtime (sow-owned, do not hand-edit): `~/.local/share/sow/` — `repos/`, `data/`, `generated/{nginx,cloudflared,systemd}/`, `state.json`
 
 ## Local development (once code exists)
 

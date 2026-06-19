@@ -1,5 +1,5 @@
 [project]
-name = "outpost"
+name = "sow"
 version = "0.1.0"
 description = "A deterministic deployment engine that turns a YAML file into git-sourced systemd user services behind a user-level NGINX, exposed through Cloudflare Tunnel."
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-outpost = "outpost.cli.app:app"
+sow = "sow.cli.app:app"
 
 [dependency-groups]
 dev = [
@@ -30,7 +30,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["outpost"]
+packages = ["sow"]
 
 # ---- ruff: formatter + linter -----------------------------------------------
 [tool.ruff]
@@ -40,7 +40,7 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 # Jinja templates and vendored example configs are not Python.
-exclude = ["outpost/templates/*.j2"]
+exclude = ["sow/templates/*.j2"]
 
 [tool.ruff.lint.per-file-ignores]
 # Typer commands may have few statements; allow unused imports in __init__.

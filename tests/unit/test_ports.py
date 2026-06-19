@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import pytest
 
-from outpost.constants import NGINX_PORT
-from outpost.engine.ports import PortAllocationError, allocate_all
-from outpost.models import OutpostConfig
+from sow.constants import NGINX_PORT
+from sow.engine.ports import PortAllocationError, allocate_all
+from sow.models import sowConfig
 from tests.unit.conftest import minimal_config, minimal_service
 
 
-def _config(services=None, **overrides) -> OutpostConfig:
-    return OutpostConfig.model_validate(minimal_config(services, **overrides))
+def _config(services=None, **overrides) -> sowConfig:
+    return sowConfig.model_validate(minimal_config(services, **overrides))
 
 
 def test_allocated_port_is_first_in_range():
@@ -48,7 +48,7 @@ def test_declared_listen_port_is_excluded_from_pool():
 
 
 def test_unix_listen_service_not_allocated_but_does_not_block_pool():
-    unix_svc = minimal_service(listen="/run/outpost/api.sock")
+    unix_svc = minimal_service(listen="/run/sow/api.sock")
     cfg = _config({"sock": unix_svc})
     assert allocate_all(cfg) == {}
 

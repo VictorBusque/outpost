@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from outpost.state.io import read_text, write_atomic
+from sow.state.io import read_text, write_atomic
 
 
 def test_write_atomic_writes_exact_bytes(tmp_path: Path) -> None:

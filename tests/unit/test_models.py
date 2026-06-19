@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from outpost.models import OutpostConfig
+from sow.models import sowConfig
 from tests.unit.conftest import minimal_config, minimal_service
 
 # ---------------------------------------------------------------------------
@@ -17,8 +17,8 @@ from tests.unit.conftest import minimal_config, minimal_service
 # ---------------------------------------------------------------------------
 
 
-def parse(cfg: dict) -> OutpostConfig:
-    return OutpostConfig.model_validate(cfg)
+def parse(cfg: dict) -> sowConfig:
+    return sowConfig.model_validate(cfg)
 
 
 def assert_invalid(cfg: dict, *, contains: str | None = None) -> None:
@@ -142,7 +142,7 @@ def test_listen_without_env_ok():
 
 
 def test_listen_unix_socket_recognised():
-    svc = minimal_service(listen="/run/outpost/api.sock")
+    svc = minimal_service(listen="/run/sow/api.sock")
     cfg = parse(minimal_config({"api": svc}))
     assert cfg.services["api"].is_unix_listen
     assert cfg.services["api"].parsed_listen_port() is None
@@ -170,7 +170,7 @@ def test_listen_duplicate_tcp_port_rejected():
 
 
 def test_listen_duplicate_unix_socket_rejected():
-    sock = "/run/outpost/x.sock"
+    sock = "/run/sow/x.sock"
     cfg = minimal_config(
         {
             "a": minimal_service(listen=sock),

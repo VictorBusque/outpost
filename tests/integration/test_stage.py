@@ -12,18 +12,18 @@ from pathlib import Path
 
 import pytest
 
-from outpost.engine.stage import stage
-from outpost.models import OutpostConfig
+from sow.engine.stage import stage
+from sow.models import sowConfig
 from tests.unit.conftest import minimal_config, minimal_service
 
 
-def _config(services: dict, routes=None, exposure=None) -> OutpostConfig:
+def _config(services: dict, routes=None, exposure=None) -> sowConfig:
     cfg = minimal_config(services)
     if routes is not None:
         cfg["routes"] = routes
     if exposure is not None:
         cfg["exposure"] = exposure
-    return OutpostConfig.model_validate(cfg)
+    return sowConfig.model_validate(cfg)
 
 
 def test_stage_writes_unit_per_service(tmp_path: Path) -> None:

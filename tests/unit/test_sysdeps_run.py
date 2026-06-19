@@ -12,7 +12,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from outpost.sysdeps.run import (
+from sow.sysdeps.run import (
     CompletedProcess,
     RealRunner,
     Runner,

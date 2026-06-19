@@ -17,12 +17,12 @@ from pathlib import Path
 
 import yaml
 
-from outpost import config as config_mod
-from outpost.engine.apply import apply
-from outpost.models import OutpostConfig
-from outpost.paths import RuntimePaths
-from outpost.state.store import State, StateStore
-from outpost.sysdeps.run import CompletedProcess
+from sow import config as config_mod
+from sow.engine.apply import apply
+from sow.models import sowConfig
+from sow.paths import RuntimePaths
+from sow.state.store import State, StateStore
+from sow.sysdeps.run import CompletedProcess
 from tests.mocks.runner import FakeRunner
 from tests.unit.conftest import minimal_config, minimal_service
 
@@ -50,8 +50,8 @@ def _script_active(fake: FakeRunner, name: str, *, active: bool = True) -> None:
     )
 
 
-def _config(services: dict, **overrides) -> OutpostConfig:  # type: ignore[no-untyped-def]
-    return OutpostConfig.model_validate(minimal_config(services, **overrides))
+def _config(services: dict, **overrides) -> sowConfig:  # type: ignore[no-untyped-def]
+    return sowConfig.model_validate(minimal_config(services, **overrides))
 
 
 # ===========================================================================
@@ -74,7 +74,7 @@ def test_apply_happy_path_installs_and_commits(tmp_path: Path) -> None:
         config=cfg,
         store=store,
         staging_root=staging,
-        config_path=tmp_path / "outpost.yaml",
+        config_path=tmp_path / "sow.yaml",
     )
 
     assert result.ok and not result.no_op
@@ -146,7 +146,7 @@ def test_apply_health_fail_rolls_back_to_last_known_good(tmp_path: Path) -> None
     _script_nginx(fake, staging)
     apply(
         runner=fake, paths=paths, config=good, store=store,
-        staging_root=staging, config_path=tmp_path / "outpost.yaml",
+        staging_root=staging, config_path=tmp_path / "sow.yaml",
     )
     good_digest = store.load().applied_digest
     assert good_digest != ""
@@ -161,7 +161,7 @@ def test_apply_health_fail_rolls_back_to_last_known_good(tmp_path: Path) -> None
     _script_nginx(fake2, staging)
     result = apply(
         runner=fake2, paths=paths, config=broken, store=store,
-        staging_root=staging, config_path=tmp_path / "outpost.yaml",
+        staging_root=staging, config_path=tmp_path / "sow.yaml",
     )
 
     assert not result.ok
@@ -182,13 +182,13 @@ def test_apply_health_fail_rolls_back_to_last_known_good(tmp_path: Path) -> None
 def test_apply_seeds_empty_sha_and_writes_it_back(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
     store = StateStore(paths.state)
-    cfg_path = tmp_path / "outpost.yaml"
+    cfg_path = tmp_path / "sow.yaml"
     # sha lives under source; minimal_service spreads kwargs on the service dict,
     # so set it on the source block explicitly.
     seeded_svc = minimal_service()
     seeded_svc["source"]["sha"] = ""
     cfg_path.write_text(yaml.safe_dump(minimal_config({"api": seeded_svc})), encoding="utf-8")
-    cfg = OutpostConfig.model_validate(minimal_config({"api": seeded_svc}))
+    cfg = sowConfig.model_validate(minimal_config({"api": seeded_svc}))
     fake = FakeRunner()
     _ok_default(fake)
     _script_nginx(fake, tmp_path / "stage")
@@ -217,15 +217,15 @@ def test_apply_skips_build_when_marker_matches_sha(tmp_path: Path) -> None:
     cfg = _config({"api": minimal_service(build="make build", sha="abc1234")})
     repo = paths.repos / "api"
     (repo / ".git").mkdir(parents=True)  # so clone no-ops
-    (repo / ".outpost").mkdir(parents=True)
-    (repo / ".outpost" / "built.sha").write_text("abc1234", encoding="utf-8")
+    (repo / ".sow").mkdir(parents=True)
+    (repo / ".sow" / "built.sha").write_text("abc1234", encoding="utf-8")
     fake = FakeRunner()
     _ok_default(fake)
     _script_nginx(fake, tmp_path / "stage")
 
     apply(
         runner=fake, paths=paths, config=cfg, store=store,
-        staging_root=tmp_path / "stage", config_path=tmp_path / "outpost.yaml",
+        staging_root=tmp_path / "stage", config_path=tmp_path / "sow.yaml",
     )
 
     assert not any(c.argv[:3] == ["sh", "-c", "make build"] for c in fake.calls)
@@ -237,22 +237,22 @@ def test_apply_rebuilds_when_marker_stale(tmp_path: Path) -> None:
     cfg = _config({"api": minimal_service(build="make build", sha="abc1234")})
     repo = paths.repos / "api"
     (repo / ".git").mkdir(parents=True)
-    (repo / ".outpost").mkdir(parents=True)
-    (repo / ".outpost" / "built.sha").write_text("oldsha", encoding="utf-8")  # stale
+    (repo / ".sow").mkdir(parents=True)
+    (repo / ".sow" / "built.sha").write_text("oldsha", encoding="utf-8")  # stale
     fake = FakeRunner()
     _ok_default(fake)
     _script_nginx(fake, tmp_path / "stage")
 
     apply(
         runner=fake, paths=paths, config=cfg, store=store,
-        staging_root=tmp_path / "stage", config_path=tmp_path / "outpost.yaml",
+        staging_root=tmp_path / "stage", config_path=tmp_path / "sow.yaml",
     )
 
     build_calls = [c for c in fake.calls if c.argv[:3] == ["sh", "-c", "make build"]]
     assert len(build_calls) == 1
     assert build_calls[0].cwd == repo  # build ran in the clone root
     # Marker refreshed to the pinned sha.
-    assert (repo / ".outpost" / "built.sha").read_text(encoding="utf-8") == "abc1234"
+    assert (repo / ".sow" / "built.sha").read_text(encoding="utf-8") == "abc1234"
 
 
 def test_apply_reuses_previously_allocated_port(tmp_path: Path) -> None:
@@ -274,7 +274,7 @@ def test_apply_reuses_previously_allocated_port(tmp_path: Path) -> None:
 
     apply(
         runner=fake, paths=paths, config=cfg, store=store,
-        staging_root=tmp_path / "stage", config_path=tmp_path / "outpost.yaml",
+        staging_root=tmp_path / "stage", config_path=tmp_path / "sow.yaml",
     )
 
     assert store.load().ports["api"] == 18500

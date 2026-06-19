@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from outpost.sysdeps import git
-from outpost.sysdeps.run import CompletedProcess, SubprocessError
+from sow.sysdeps import git
+from sow.sysdeps.run import CompletedProcess, SubprocessError
 from tests.mocks import FakeRunner
 
-REPO = Path("/srv/outpost/repos/api")
+REPO = Path("/srv/sow/repos/api")
 URL = "https://github.com/me/svc.git"
 
 

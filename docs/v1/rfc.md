@@ -1,10 +1,10 @@
-# RFC: Outpost — Linux Micro-Platform Control Plane (v1)
+# RFC: sow — Linux Micro-Platform Control Plane (v1)
 
 ## 1. Summary
 
-Outpost is a lightweight control plane for running git-sourced services on a single systemd Linux machine. It provides a CLI and an MCP interface that turns a declarative YAML file into running systemd user services exposed through a managed NGINX reverse proxy and Cloudflare Tunnel.
+sow is a lightweight control plane for running git-sourced services on a single systemd Linux machine. It provides a CLI and an MCP interface that turns a declarative YAML file into running systemd user services exposed through a managed NGINX reverse proxy and Cloudflare Tunnel.
 
-Outpost is not a scheduler, container platform, or proxy system. It is a deterministic deployment engine that owns the lifecycle of small services on one host.
+sow is not a scheduler, container platform, or proxy system. It is a deterministic deployment engine that owns the lifecycle of small services on one host.
 
 v1 is intentionally minimal: one machine, one configuration, one execution loop.
 
@@ -12,9 +12,9 @@ v1 is intentionally minimal: one machine, one configuration, one execution loop.
 
 ## 2. Core Principle
 
-Outpost implements a single loop:
+sow implements a single loop:
 
-> A YAML file defines services and routes → Outpost materializes systemd units and NGINX config → services run behind a tunnel.
+> A YAML file defines services and routes → sow materializes systemd units and NGINX config → services run behind a tunnel.
 
 Everything else is derived from this loop.
 
@@ -22,15 +22,15 @@ Everything else is derived from this loop.
 
 ## 3. System Overview
 
-Outpost consists of:
+sow consists of:
 
-- a CLI binary (`outpost`)
+- a CLI binary (`sow`)
 - a user-level runtime managed under the current user’s home directory
 - systemd user services
 - a user-level NGINX instance
 - Cloudflare Tunnel (`cloudflared`)
 
-Outpost is host-wide, but user-space: it runs on a single Linux machine under the operator account, without requiring a custom root daemon.
+sow is host-wide, but user-space: it runs on a single Linux machine under the operator account, without requiring a custom root daemon.
 
 ---
 
@@ -46,14 +46,14 @@ curl -fsSL <repo>/install.sh | sh
 
 The installer is responsible for:
 
-- installing the `outpost` CLI binary into the PATH
+- installing the `sow` CLI binary into the PATH
 - ensuring required dependencies exist:
 
   - git
   - systemd user support
   - nginx
   - cloudflared
-- running `outpost init`
+- running `sow init`
 
 ### Privilege boundary
 
@@ -66,13 +66,13 @@ If privilege escalation is not available, the installer must fail fast with exac
 
 ### Key design rule
 
-> `install.sh` makes the host capable. `outpost init` makes the platform operational.
+> `install.sh` makes the host capable. `sow init` makes the platform operational.
 
 ---
 
-## 5. Initialization (`outpost init`)
+## 5. Initialization (`sow init`)
 
-`outpost init` is an opinionated bootstrap that ensures the platform is ready to use.
+`sow init` is an opinionated bootstrap that ensures the platform is ready to use.
 
 It performs:
 
@@ -88,8 +88,8 @@ It performs:
 
 If missing, `init`:
 
-- creates `~/.config/outpost/outpost.yaml`
-- creates the Outpost runtime directory structure under `~/.local/share/outpost/`
+- creates `~/.config/sow/sow.yaml`
+- creates the sow runtime directory structure under `~/.local/share/sow/`
 - prepares the nginx include directory and runtime config paths
 - prepares cloudflared config pointing to local NGINX
 
@@ -108,21 +108,21 @@ If missing, `init`:
 
 ## 6. Directory Layout
 
-Outpost uses split ownership:
+sow uses split ownership:
 
 ### User-owned config
 
 ```text
-~/.config/outpost/
-  outpost.yaml
+~/.config/sow/
+  sow.yaml
 ```
 
 This file is the editable configuration source of truth. The user owns it and may version-control it if desired.
 
-### Outpost-owned runtime
+### sow-owned runtime
 
 ```text
-~/.local/share/outpost/
+~/.local/share/sow/
   repos/
     <service-name>/
   data/
@@ -136,15 +136,15 @@ This file is the editable configuration source of truth. The user owns it and ma
 
 Rules:
 
-- `repos/`, `data/`, `generated/`, and `state.json` are managed by Outpost
+- `repos/`, `data/`, `generated/`, and `state.json` are managed by sow
 - the user should not edit runtime files directly
-- the CLI and MCP are the supported mutation interfaces for Outpost-managed state
+- the CLI and MCP are the supported mutation interfaces for sow-managed state
 
 ---
 
 ## 7. System Model
 
-Outpost defines two primitives:
+sow defines two primitives:
 
 ### 7.1 Service
 
@@ -174,7 +174,7 @@ Routes compile into NGINX configuration.
 The source of truth is:
 
 ```text
-~/.config/outpost/outpost.yaml
+~/.config/sow/sow.yaml
 ```
 
 This file is:
@@ -182,9 +182,9 @@ This file is:
 - the canonical configuration for the platform
 - user-editable
 - optionally version-controlled by the user
-- mutated by Outpost commands when needed
+- mutated by sow commands when needed
 
-Outpost CLI is the authoritative writer for deployment-related fields such as `source.sha`. All writes go through temp-file + atomic rename to prevent torn files. v1 assumes a single operator issuing serialized commands. The MCP server serializes tool calls within one stdio connection, but there is no cross-process lock, so concurrent CLI + MCP sessions (or multiple MCP clients) can still race on `outpost.yaml`/`state.json`. An `fcntl` advisory lock is a candidate hardening but is deferred — concurrent edits may lose updates.
+sow CLI is the authoritative writer for deployment-related fields such as `source.sha`. All writes go through temp-file + atomic rename to prevent torn files. v1 assumes a single operator issuing serialized commands. The MCP server serializes tool calls within one stdio connection, but there is no cross-process lock, so concurrent CLI + MCP sessions (or multiple MCP clients) can still race on `sow.yaml`/`state.json`. An `fcntl` advisory lock is a candidate hardening but is deferred — concurrent edits may lose updates.
 
 ---
 
@@ -192,7 +192,7 @@ Outpost CLI is the authoritative writer for deployment-related fields such as `s
 
 ### 9.1 `apply`
 
-`outpost apply` performs a full reconciliation:
+`sow apply` performs a full reconciliation:
 
 1. parse YAML
 2. validate schema
@@ -209,8 +209,8 @@ Outpost CLI is the authoritative writer for deployment-related fields such as `s
 8. reload systemd user daemon
 9. start/restart affected services
 10. run startup health check against each service's local listener, if defined
-11. on success: reload NGINX (activating new routing) and ensure cloudflared is running; on failure: restore last-known-good config and reload NGINX back to it. cloudflared is a `systemd --user` unit, so a start failure surfaces as a `subprocess` error and fails the apply (rollback) just like any other command
-12. commit apply (update spec digest + timestamps in `state.json`)
+11. ensure cloudflared is running (a unit start failure surfaces as a `subprocess` error and fails the apply)
+12. on success (all health checks passed and cloudflared started): reload NGINX to activate new routing, then commit apply (update spec digest + timestamps in `state.json`); on failure: restore last-known-good config and reload NGINX back to it
 
 ### Failure model
 
@@ -223,7 +223,7 @@ The result is all-or-nothing for v1.
 
 ### 9.2 `update`
 
-`outpost update <service>`:
+`sow update <service>`:
 
 1. fetch the latest commit from `source.ref`
 2. write the resulting SHA into `source.sha` in the config
@@ -237,7 +237,7 @@ If any step fails, the running system remains unchanged.
 
 ### Cloudflare Tunnel only
 
-Outpost assumes one exposure mechanism in v1:
+sow assumes one exposure mechanism in v1:
 
 - `cloudflared` connects to local NGINX
 - NGINX handles routing
@@ -248,7 +248,7 @@ Flow:
 Internet → Cloudflare Tunnel → NGINX (localhost) → Service
 ```
 
-Outpost renders the cloudflared config from the exposure section of the YAML. It does not manage public TLS certificates or expose multiple tunnel providers in v1. cloudflared runs as a platform-managed `systemd --user` unit: `init` enables it and `apply` ensures it is started; supervision is delegated to systemd.
+sow renders the cloudflared config from the exposure section of the YAML. It does not manage public TLS certificates or expose multiple tunnel providers in v1. cloudflared runs as a platform-managed `systemd --user` unit: `init` enables it and `apply` ensures it is started; supervision is delegated to systemd.
 
 ---
 
@@ -256,7 +256,7 @@ Outpost renders the cloudflared config from the exposure section of the YAML. It
 
 - single user-level NGINX instance
 - listens on a fixed local port, default `127.0.0.1:41999`
-- includes generated config from the Outpost runtime directory
+- includes generated config from the sow runtime directory
 - acts only as a reverse proxy and route dispatcher
 
 v1 does not include:
@@ -276,7 +276,7 @@ v1 does not include:
 - managed via CLI
 - restart behavior delegated to systemd
 
-Outpost does not implement its own process supervisor.
+sow does not implement its own process supervisor.
 
 ---
 
@@ -297,10 +297,10 @@ Cloudflared edge registration is **not** part of the health gate. `apply` ensure
 
 ## 14. State Model
 
-Outpost maintains minimal state in:
+sow maintains minimal state in:
 
 ```text
-~/.local/share/outpost/state.json
+~/.local/share/sow/state.json
 ```
 
 This file stores only what cannot be reliably derived from config or runtime files:
@@ -309,7 +309,7 @@ This file stores only what cannot be reliably derived from config or runtime fil
 - allocated port assignments for services that omit `listen`
 - timestamps of recent successful applies
 
-It does **not** store the deployed SHA. The deployed SHA lives in `source.sha` inside `outpost.yaml` and is the source of truth for versioned deployment state.
+It does **not** store the deployed SHA. The deployed SHA lives in `source.sha` inside `sow.yaml` and is the source of truth for versioned deployment state.
 
 No history store, no analytics, no event database, no SQLite in v1.
 
@@ -322,9 +322,9 @@ Each service has exactly one bind address.
 The address is resolved in one of two ways:
 
 - **Declared**: set `listen:` to `host:port` or a unix socket path
-- **Allocated**: omit `listen:` and Outpost assigns a stable loopback port from a configured range (default `18000-18999`, set via a top-level `port_range:`). Allocation is first-fit (lowest free port), persisted in `state.json`, and reused unless the service definition changes. The range excludes the NGINX port `41999` and all declared `listen` ports; collisions between a `listen` port and `41999`, another `listen` port, or an allocated port are a validation error. If the range is exhausted, `apply` fails fast.
+- **Allocated**: omit `listen:` and sow assigns a stable loopback port from a configured range (default `18000-18999`, set via a top-level `port_range:`). Allocation is first-fit (lowest free port), persisted in `state.json`, and reused unless the service definition changes. The range excludes the NGINX port `41999` and all declared `listen` ports; collisions between a `listen` port and `41999`, another `listen` port, or an allocated port are a validation error. If the range is exhausted, `apply` fails fast.
 
-In both cases, Outpost injects the bind address and persistent data path into the service environment as:
+In both cases, sow injects the bind address and persistent data path into the service environment as:
 
 - `PORT`
 - `ADDRESS`
@@ -389,7 +389,7 @@ Fields:
 - `source.sha`
 
   - exact commit currently deployed
-  - written by Outpost
+  - written by sow
   - may be empty before first deploy
 - `source.path`
 
@@ -403,16 +403,16 @@ Rules:
 - `apply` reconciles to the pinned `sha`; the only time `apply` writes `sha` is the one-time seed of an empty field (resolving `ref`→sha on first deploy)
 - `apply` never advances an already-set `sha` within a ref
 - `update` is the only command that advances an existing `sha`
-- Outpost owns the managed clone under `~/.local/share/outpost/repos/<service>`; clones are keyed by service name, so two services from the same repo (e.g. a monorepo with different `source.path`) get independent clones
+- sow owns the managed clone under `~/.local/share/sow/repos/<service>`; clones are keyed by service name, so two services from the same repo (e.g. a monorepo with different `source.path`) get independent clones
 - local edits inside the managed clone are overwritten on update
 
 Because the config is also written by `update`, the user interacts primarily through the CLI or MCP rather than hand-editing deployment fields.
 
-Private repositories use the operator’s existing git credentials. Outpost runs git as the operator user and does not provide a credential manager in v1.
+Private repositories use the operator’s existing git credentials. sow runs git as the operator user and does not provide a credential manager in v1.
 
 The persistent service data directory is separate from the managed clone:
 
-- `~/.local/share/outpost/data/<service>/`
+- `~/.local/share/sow/data/<service>/`
 
 Mutable application state such as databases, uploads, caches, and user-generated files must live under `DATA_DIR`. Updates may replace the repo contents, but they must not touch service data.
 
@@ -441,20 +441,20 @@ The CLI is the primary operator interface and the canonical engine used by highe
 
 ### Required v1 command surface
 
-- `outpost init`
-- `outpost apply`
-- `outpost update <service> [--ref <ref>]`
-- `outpost validate`
-- `outpost status`
-- `outpost logs <service> [--lines N]`
-- `outpost ps`
-- `outpost routes`
-- `outpost exposure`
-- `outpost start <service>`
-- `outpost stop <service>`
-- `outpost restart <service>`
-- `outpost up`
-- `outpost down`
+- `sow init`
+- `sow apply`
+- `sow update <service> [--ref <ref>]`
+- `sow validate`
+- `sow status`
+- `sow logs <service> [--lines N]`
+- `sow ps`
+- `sow routes`
+- `sow exposure`
+- `sow start <service>`
+- `sow stop <service>`
+- `sow restart <service>`
+- `sow up`
+- `sow down`
 
 ### Semantics
 
@@ -468,7 +468,7 @@ The CLI is the primary operator interface and the canonical engine used by highe
 
 ## 20. MCP and Coding-Agent Integration
 
-Outpost exposes a stdio MCP server.
+sow exposes a stdio MCP server.
 
 ### Usage model
 
@@ -554,10 +554,10 @@ Explicitly excluded:
 
 ## 24. Success Criteria
 
-Outpost v1 is successful if a user can:
+sow v1 is successful if a user can:
 
 1. install via `curl ... | sh`
-2. run `outpost init`
+2. run `sow init`
 3. define a YAML file with services and routes
 4. deploy git-sourced services
 5. expose selected services through Cloudflare Tunnel
@@ -569,7 +569,7 @@ Outpost v1 is successful if a user can:
 
 ## 25. Final System Definition
 
-Outpost v1 is:
+sow v1 is:
 
 > a deterministic deployment engine that turns a YAML file into git-sourced systemd user services behind a user-level NGINX, exposed through Cloudflare Tunnel, operated through CLI and MCP.
 
