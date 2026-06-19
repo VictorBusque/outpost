@@ -115,7 +115,7 @@ ensure_cmd() {
 
 ensure_cmd git    "git"            "git"
 ensure_cmd nginx  "nginx"          "nginx"
-# cloudflared needs its own repo on apt/deb — check and install separately
+# cloudflared — download the static binary, no repo needed
 get_cloudflared() {
     if command -v cloudflared >/dev/null 2>&1; then
         ok "cloudflared found"
@@ -125,21 +125,11 @@ get_cloudflared() {
     if [ -z "$PKG_MANAGER" ]; then
         die "install cloudflared manually and re-run"
     fi
-    info "installing ${BOLD}cloudflared${RESET} via $PKG_MANAGER..."
-    case "$PKG_MANAGER" in
-        apt)
-            sudo_cmd mkdir -p -m 0755 /usr/share/keyrings
-            curl -fsSLo /tmp/cloudflare-main.gpg https://pkg.cloudflare.com/cloudflare-main.gpg
-            sudo_cmd cp /tmp/cloudflare-main.gpg /usr/share/keyrings/cloudflare-main.gpg
-            echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" > /tmp/cloudflared.list
-            sudo_cmd cp /tmp/cloudflared.list /etc/apt/sources.list.d/cloudflared.list
-            sudo_cmd apt-get update -qq
-            sudo_cmd apt-get install -y cloudflared
-            ;;
-        *)
-            install_pkg cloudflared "$PKG_MANAGER" || die "could not install cloudflared via $PKG_MANAGER — install manually and re-run"
-            ;;
-    esac
+    info "downloading ${BOLD}cloudflared${RESET} binary from GitHub..."
+    cloudflared_url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+    cloudflared_bin="/usr/local/bin/cloudflared"
+    sudo_cmd curl -fsSLo "$cloudflared_bin" "$cloudflared_url"
+    sudo_cmd chmod +x "$cloudflared_bin"
     ok "cloudflared installed"
 }
 get_cloudflared
