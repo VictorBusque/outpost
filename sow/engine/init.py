@@ -11,6 +11,8 @@ overwrites operator-edited configs). ``install.sh`` delegates to it.
 
 from __future__ import annotations
 
+import getpass
+import os
 from pathlib import Path
 
 from sow.constants import CLOUDFLARED_UNIT
@@ -102,11 +104,11 @@ def init(
 
     # 1. Environment checks.
     checks = _check_env(runner)
-    ok = ok and all(checks.values())
-    for tool, status in checks.items():
-        _append(steps, f"  {tool}: {'ok' if status else 'MISSING'}")
+    ok = ok and all(status for _name, status, _hint in checks)
+    for name, status, remediation in checks:
+        _append(steps, f"  {name}: {'ok' if status else 'MISSING'}")
         if not status:
-            _append(steps, f"    install {tool} and re-run `sow init`")
+            _append(steps, f"    {remediation}")
 
     # 2. Create runtime directory tree.
     for d in (paths.repos, paths.data, paths.systemd, paths.nginx, paths.cloudflared):
@@ -162,33 +164,59 @@ def init(
 # ===========================================================================
 
 
-def _check_env(runner: Runner) -> dict[str, bool]:
-    """Check that required tools exist and are callable.
+def _current_user() -> str:
+    """Best-effort current username, for remediation hints only."""
+    try:
+        return getpass.getuser()
+    except (KeyError, OSError):
+        return "<user>"
 
-    Returns a dict: tool name → available (True/False).
+
+def _check_env(runner: Runner) -> list[tuple[str, bool, str]]:
+    """Check that required tools are callable and that linger is enabled.
+
+    Returns a list of ``(name, status, remediation)`` triples: ``name`` is the
+    label printed in the report, ``status`` is whether the check passed, and
+    ``remediation`` is the hint shown when it did not.
     """
-    tests: list[tuple[str, list[str]]] = [
+    result: list[tuple[str, bool, str]] = []
+
+    # Tool presence: each must be callable. A missing tool is installed, hence
+    # the "install <name>" hint.
+    tool_tests: list[tuple[str, list[str]]] = [
         ("git", ["git", "--version"]),
         ("systemctl (user)", ["systemctl", "--user", "--version"]),
         ("nginx", ["nginx", "-v"]),
         ("cloudflared", ["cloudflared", "version"]),
     ]
-    result: dict[str, bool] = {}
-    for name, argv in tests:
+    for name, argv in tool_tests:
+        hint = f"install {name} and re-run `sow init`"
         try:
             runner.run(argv, check=False)
-            result[name] = True
+            result.append((name, True, hint))
         except (OSError, SubprocessError):
-            result[name] = False
-    # Linger check: loginctl show-user --property Linger.
+            result.append((name, False, hint))
+
+    # Linger: ``loginctl show-user --property Linger`` with no user prints
+    # nothing, so the check must name a user. Query by UID — it avoids relying
+    # on $USER/$LOGNAME and matches regardless of how the shell was entered.
+    uid = str(os.getuid())
+    user = _current_user()
     try:
         r = runner.run(
-            ["loginctl", "show-user", "--property", "Linger"],
+            ["loginctl", "show-user", uid, "--property", "Linger"],
             check=False,
         )
-        result["loginctl enable-linger"] = "yes" in r.stdout
-    except OSError:
-        result["loginctl enable-linger"] = False
+        linger_ok = "yes" in r.stdout
+    except (OSError, SubprocessError):
+        linger_ok = False
+    result.append(
+        (
+            "linger",
+            linger_ok,
+            f"run `loginctl enable-linger {user}`, then re-run `sow init`",
+        )
+    )
     return result
 
 
