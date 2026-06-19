@@ -7,7 +7,7 @@
 # Installs missing system dependencies where possible (requires sudo for
 # packages). Privilege escalation is requested only when needed.
 # sow itself runs rootless — only the one-time dep install may use sudo.
-set -e
+set -eo pipefail
 
 # ── style ─────────────────────────────────────────────────────────────────
 BOLD=$(printf '\033[1m')
@@ -115,7 +115,32 @@ ensure_cmd() {
 
 ensure_cmd git    "git"            "git"
 ensure_cmd nginx  "nginx"          "nginx"
-ensure_cmd cloudflared "cloudflared" "cloudflared"
+# cloudflared needs its own repo on apt/deb — check and install separately
+get_cloudflared() {
+    if command -v cloudflared >/dev/null 2>&1; then
+        ok "cloudflared found"
+        return 0
+    fi
+    fail "cloudflared not found"
+    if [ -z "$PKG_MANAGER" ]; then
+        die "install cloudflared manually and re-run"
+    fi
+    info "installing ${BOLD}cloudflared${RESET} via $PKG_MANAGER..."
+    case "$PKG_MANAGER" in
+        apt)
+            sudo_cmd mkdir -p /usr/share/keyrings
+            curl -fsSL https://pkg.cloudflare.com/cloudflared.gpg | sudo_cmd tee /usr/share/keyrings/cloudflared.gpg >/dev/null
+            echo "deb [signed-by=/usr/share/keyrings/cloudflared.gpg] https://pkg.cloudflare.com/cloudflared any main" | sudo_cmd tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
+            sudo_cmd apt-get update -qq
+            sudo_cmd apt-get install -y cloudflared
+            ;;
+        *)
+            install_pkg cloudflared "$PKG_MANAGER" || die "could not install cloudflared via $PKG_MANAGER — install manually and re-run"
+            ;;
+    esac
+    ok "cloudflared installed"
+}
+get_cloudflared
 
 # systemd user check — not a package, a service check
 if systemctl --user --version >/dev/null 2>&1; then
@@ -138,17 +163,15 @@ fi
 # ── step 3: install sow ───────────────────────────────────────────────
 step 3 $TOTAL_STEPS "Installing sow CLI"
 
-REPO_URL="https://github.com/VictorBusque/sow.git"
-
 if command -v uv >/dev/null 2>&1; then
-    info "installing via uv from GitHub..."
-    uv tool install "git+${REPO_URL}" --force
+    info "installing via uv from PyPI..."
+    uv tool install sow-cli --force
 elif command -v pipx >/dev/null 2>&1; then
-    info "installing via pipx from GitHub..."
-    pipx install "git+${REPO_URL}"
+    info "installing via pipx from PyPI..."
+    pipx install sow-cli
 else
-    info "installing via pip from GitHub..."
-    pip3 install --user "git+${REPO_URL}"
+    info "installing via pip from PyPI..."
+    pip3 install --user sow-cli
 fi
 
 ok "sow installed"
